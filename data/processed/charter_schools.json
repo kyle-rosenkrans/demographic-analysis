@@ -1,0 +1,656 @@
+[
+  {
+    "school_num": "06-5233",
+    "name": "Academic Solutions Academy A",
+    "operator": "Other / Independent",
+    "enrollment": 199
+  },
+  {
+    "school_num": "06-5028",
+    "name": "Academic Solutions High School",
+    "operator": "Other / Independent",
+    "enrollment": 152
+  },
+  {
+    "school_num": "06-5421",
+    "name": "Alpha International Academy",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5581",
+    "name": "Alphabet Land-Margate",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-6051",
+    "name": "Amikids Of Greater Fort Lauderdale",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5009",
+    "name": "Andrews High School",
+    "operator": "Other / Independent",
+    "enrollment": 386
+  },
+  {
+    "school_num": "06-5511",
+    "name": "Ann Storck Center, Inc.",
+    "operator": "Other / Independent",
+    "enrollment": 21
+  },
+  {
+    "school_num": "06-5501",
+    "name": "Arc Broward, Inc.",
+    "operator": "Other / Independent",
+    "enrollment": 66
+  },
+  {
+    "school_num": "06-5209",
+    "name": "Ascend Career Academy",
+    "operator": "Other / Independent",
+    "enrollment": 177
+  },
+  {
+    "school_num": "06-5029",
+    "name": "Atlantic Montessori Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 54
+  },
+  {
+    "school_num": "06-5164",
+    "name": "Atlantic Montessori Charter West Campus",
+    "operator": "Other / Independent",
+    "enrollment": 91
+  },
+  {
+    "school_num": "06-5015",
+    "name": "Avant Garde Academy K-5 Broward",
+    "operator": "Other / Independent",
+    "enrollment": 923
+  },
+  {
+    "school_num": "06-5791",
+    "name": "Avant Garde Academy Of Broward",
+    "operator": "Other / Independent",
+    "enrollment": 1126
+  },
+  {
+    "school_num": "06-5521",
+    "name": "Baudhuin Oral School-Nova Uni.",
+    "operator": "Other / Independent",
+    "enrollment": 92
+  },
+  {
+    "school_num": "06-5001",
+    "name": "Ben Gamla Charter School North Campus",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5392",
+    "name": "Ben Gamla Charter School South Broward",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5410",
+    "name": "Ben Gamla Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 650
+  },
+  {
+    "school_num": "06-5022",
+    "name": "Bridgeprep Academy Of Broward K-8",
+    "operator": "Other / Independent",
+    "enrollment": 141
+  },
+  {
+    "school_num": "06-5116",
+    "name": "Bridgeprep Academy Of Hollywood Hills",
+    "operator": "Other / Independent",
+    "enrollment": 353
+  },
+  {
+    "school_num": "06-5531",
+    "name": "Broward Children'S Center North",
+    "operator": "Other / Independent",
+    "enrollment": 11
+  },
+  {
+    "school_num": "06-5541",
+    "name": "Broward Children'S Center South",
+    "operator": "Other / Independent",
+    "enrollment": 26
+  },
+  {
+    "school_num": "06-6011",
+    "name": "Broward Detention Center",
+    "operator": "Other / Independent",
+    "enrollment": 55
+  },
+  {
+    "school_num": "06-5038",
+    "name": "Broward Math And Science Schools",
+    "operator": "Other / Independent",
+    "enrollment": 223
+  },
+  {
+    "school_num": "06-7004",
+    "name": "Broward Virtual Franchise",
+    "operator": "Other / Independent",
+    "enrollment": 516
+  },
+  {
+    "school_num": "06-7001",
+    "name": "Broward Virtual Instruction Program",
+    "operator": "Other / Independent",
+    "enrollment": 55
+  },
+  {
+    "school_num": "06-6017",
+    "name": "Broward Youth Treatment Center",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5041",
+    "name": "Central Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 1392
+  },
+  {
+    "school_num": "06-5234",
+    "name": "Championship Acad Of Distinction West Broward",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5422",
+    "name": "Championship Academy Of Distinction At Davie",
+    "operator": "Other / Independent",
+    "enrollment": 357
+  },
+  {
+    "school_num": "06-5219",
+    "name": "Championship Academy Of Distinction High",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5361",
+    "name": "Championship Academy Of Distinction Hollywood",
+    "operator": "Other / Independent",
+    "enrollment": 240
+  },
+  {
+    "school_num": "06-5215",
+    "name": "Championship Academy Of Distinction Middle",
+    "operator": "Other / Independent",
+    "enrollment": 222
+  },
+  {
+    "school_num": "06-5271",
+    "name": "Charter School Of Excellence At Davie",
+    "operator": "Other / Independent",
+    "enrollment": 233
+  },
+  {
+    "school_num": "06-5031",
+    "name": "Charter School Of Excellence",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5121",
+    "name": "City/Pembroke Pines Charter Hs",
+    "operator": "Pembroke Pines Charter",
+    "enrollment": 2161
+  },
+  {
+    "school_num": "06-5081",
+    "name": "City/Pembroke Pines Charter Middle School",
+    "operator": "Pembroke Pines Charter",
+    "enrollment": 1362
+  },
+  {
+    "school_num": "06-5091",
+    "name": "Coral Springs Charter School",
+    "operator": "Charter Schools USA",
+    "enrollment": 1767
+  },
+  {
+    "school_num": "06-5355",
+    "name": "Eagles Nest Charter Academy",
+    "operator": "Other / Independent",
+    "enrollment": 250
+  },
+  {
+    "school_num": "06-5356",
+    "name": "Eagles Nest Middle Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 46
+  },
+  {
+    "school_num": "06-5407",
+    "name": "Everest Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 132
+  },
+  {
+    "school_num": "06-5393",
+    "name": "Excelsior Charter Of Broward",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5037",
+    "name": "Franklin Academy Cooper City",
+    "operator": "Franklin Academy",
+    "enrollment": 1336
+  },
+  {
+    "school_num": "06-5046",
+    "name": "Franklin Academy F",
+    "operator": "Franklin Academy",
+    "enrollment": 872
+  },
+  {
+    "school_num": "06-5142",
+    "name": "Franklin Academy Pembroke Pines High School",
+    "operator": "Franklin Academy",
+    "enrollment": 1206
+  },
+  {
+    "school_num": "06-5012",
+    "name": "Franklin Academy Pembroke Pines",
+    "operator": "Franklin Academy",
+    "enrollment": 1329
+  },
+  {
+    "school_num": "06-5010",
+    "name": "Franklin Academy Sunrise",
+    "operator": "Franklin Academy",
+    "enrollment": 1387
+  },
+  {
+    "school_num": "06-5130",
+    "name": "Greentree Preparatory Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 252
+  },
+  {
+    "school_num": "06-5641",
+    "name": "Gulfstream Early Childhood Center Of Excellen",
+    "operator": "Other / Independent",
+    "enrollment": 123
+  },
+  {
+    "school_num": "06-6501",
+    "name": "Henry D Perry Education Center",
+    "operator": "Other / Independent",
+    "enrollment": 845
+  },
+  {
+    "school_num": "06-5325",
+    "name": "Hollywood Acad Of Arts & Scien",
+    "operator": "Other / Independent",
+    "enrollment": 1148
+  },
+  {
+    "school_num": "06-5362",
+    "name": "Hollywood Academy Of Arts And Science Middle",
+    "operator": "Other / Independent",
+    "enrollment": 474
+  },
+  {
+    "school_num": "06-5171",
+    "name": "Imagine Charter School At N Lauderdale Elem",
+    "operator": "Imagine Schools",
+    "enrollment": 418
+  },
+  {
+    "school_num": "06-5111",
+    "name": "Imagine Charter School At Weston",
+    "operator": "Imagine Schools",
+    "enrollment": 1105
+  },
+  {
+    "school_num": "06-5024",
+    "name": "Imagine Schools At Broward",
+    "operator": "Imagine Schools",
+    "enrollment": 1111
+  },
+  {
+    "school_num": "06-5044",
+    "name": "Imagine Schools Plantation Campus",
+    "operator": "Imagine Schools",
+    "enrollment": 552
+  },
+  {
+    "school_num": "06-5177",
+    "name": "Innovation Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 405
+  },
+  {
+    "school_num": "06-5416",
+    "name": "International School Of Broward",
+    "operator": "Other / Independent",
+    "enrollment": 61
+  },
+  {
+    "school_num": "06-5555",
+    "name": "International Studies Academy High School",
+    "operator": "Other / Independent",
+    "enrollment": 231
+  },
+  {
+    "school_num": "06-5556",
+    "name": "International Studies Academy Middle School",
+    "operator": "Other / Independent",
+    "enrollment": 287
+  },
+  {
+    "school_num": "06-5852",
+    "name": "New Life Charter Academy",
+    "operator": "Other / Independent",
+    "enrollment": 111
+  },
+  {
+    "school_num": "06-5161",
+    "name": "North Broward Academy Of Excel",
+    "operator": "Charter Schools USA",
+    "enrollment": 621
+  },
+  {
+    "school_num": "06-5371",
+    "name": "North Broward Academy Of Excellence Middle",
+    "operator": "Charter Schools USA",
+    "enrollment": 357
+  },
+  {
+    "school_num": "06-6091",
+    "name": "Pace Center For Girls, Inc.",
+    "operator": "Other / Independent",
+    "enrollment": 59
+  },
+  {
+    "school_num": "06-5801",
+    "name": "Panacea Prep Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 74
+  },
+  {
+    "school_num": "06-5381",
+    "name": "Paragon Academy Of Technology",
+    "operator": "Other / Independent",
+    "enrollment": 101
+  },
+  {
+    "school_num": "06-5051",
+    "name": "Pembroke Pines Charter Elementary School",
+    "operator": "Pembroke Pines Charter",
+    "enrollment": 2057
+  },
+  {
+    "school_num": "06-5014",
+    "name": "Renaissance Charter Middle School At Pines",
+    "operator": "Charter Schools USA",
+    "enrollment": 451
+  },
+  {
+    "school_num": "06-5049",
+    "name": "Renaissance Charter School At Cooper City",
+    "operator": "Charter Schools USA",
+    "enrollment": 1223
+  },
+  {
+    "school_num": "06-5020",
+    "name": "Renaissance Charter School At Coral Springs",
+    "operator": "Charter Schools USA",
+    "enrollment": 1523
+  },
+  {
+    "school_num": "06-5023",
+    "name": "Renaissance Charter School At Plantation",
+    "operator": "Charter Schools USA",
+    "enrollment": 905
+  },
+  {
+    "school_num": "06-5048",
+    "name": "Renaissance Charter School At University",
+    "operator": "Charter Schools USA",
+    "enrollment": 1454
+  },
+  {
+    "school_num": "06-5710",
+    "name": "Renaissance Charter Schools At Pines",
+    "operator": "Charter Schools USA",
+    "enrollment": 658
+  },
+  {
+    "school_num": "06-5420",
+    "name": "Rise Academy School Of Science And Technology",
+    "operator": "Other / Independent",
+    "enrollment": 323
+  },
+  {
+    "school_num": "06-5007",
+    "name": "Somerset Academy Charter High School Miramar",
+    "operator": "Somerset Academy",
+    "enrollment": 276
+  },
+  {
+    "school_num": "06-5221",
+    "name": "Somerset Academy Charter High",
+    "operator": "Somerset Academy",
+    "enrollment": 1494
+  },
+  {
+    "school_num": "06-5211",
+    "name": "Somerset Academy Davie Charter School",
+    "operator": "Somerset Academy",
+    "enrollment": 150
+  },
+  {
+    "school_num": "06-5391",
+    "name": "Somerset Academy East Preparatory",
+    "operator": "Somerset Academy",
+    "enrollment": 151
+  },
+  {
+    "school_num": "06-5405",
+    "name": "Somerset Academy Elementary (Miramar Campus)",
+    "operator": "Somerset Academy",
+    "enrollment": 514
+  },
+  {
+    "school_num": "06-5263",
+    "name": "Somerset Academy Elementary South Campus",
+    "operator": "Somerset Academy",
+    "enrollment": 350
+  },
+  {
+    "school_num": "06-5224",
+    "name": "Somerset Academy Key Charter High School",
+    "operator": "Somerset Academy",
+    "enrollment": 298
+  },
+  {
+    "school_num": "06-5413",
+    "name": "Somerset Academy Key Middle School",
+    "operator": "Somerset Academy",
+    "enrollment": 334
+  },
+  {
+    "school_num": "06-5406",
+    "name": "Somerset Academy Middle (Miramar Campus)",
+    "operator": "Somerset Academy",
+    "enrollment": 414
+  },
+  {
+    "school_num": "06-5151",
+    "name": "Somerset Academy Middle School",
+    "operator": "Somerset Academy",
+    "enrollment": 1061
+  },
+  {
+    "school_num": "06-5054",
+    "name": "Somerset Academy Miramar South",
+    "operator": "Somerset Academy",
+    "enrollment": 212
+  },
+  {
+    "school_num": "06-5388",
+    "name": "Somerset Academy Pompano (K-5)",
+    "operator": "Somerset Academy",
+    "enrollment": 154
+  },
+  {
+    "school_num": "06-5419",
+    "name": "Somerset Academy Riverside Charter Middle Sch",
+    "operator": "Somerset Academy",
+    "enrollment": 315
+  },
+  {
+    "school_num": "06-5387",
+    "name": "Somerset Academy Riverside",
+    "operator": "Somerset Academy",
+    "enrollment": 407
+  },
+  {
+    "school_num": "06-5002",
+    "name": "Somerset Academy Village Charter Middle",
+    "operator": "Somerset Academy",
+    "enrollment": 152
+  },
+  {
+    "school_num": "06-5141",
+    "name": "Somerset Academy",
+    "operator": "Somerset Academy",
+    "enrollment": 643
+  },
+  {
+    "school_num": "06-5396",
+    "name": "Somerset Arts Conservatory",
+    "operator": "Somerset Academy",
+    "enrollment": 390
+  },
+  {
+    "school_num": "06-5021",
+    "name": "Somerset Neighborhood School",
+    "operator": "Somerset Academy",
+    "enrollment": 466
+  },
+  {
+    "school_num": "06-5056",
+    "name": "Somerset Parkland Academy",
+    "operator": "Somerset Academy",
+    "enrollment": 1027
+  },
+  {
+    "school_num": "06-5030",
+    "name": "Somerset Pines Academy",
+    "operator": "Somerset Academy",
+    "enrollment": 439
+  },
+  {
+    "school_num": "06-5003",
+    "name": "Somerset Prep Academy At N Lauderdale",
+    "operator": "Somerset Academy",
+    "enrollment": 721
+  },
+  {
+    "school_num": "06-5006",
+    "name": "Somerset Prep Academy High At N Lauderdale",
+    "operator": "Somerset Academy",
+    "enrollment": 328
+  },
+  {
+    "school_num": "06-5441",
+    "name": "Somerset Preparatory Charter Middle School",
+    "operator": "Somerset Academy",
+    "enrollment": 351
+  },
+  {
+    "school_num": "06-5004",
+    "name": "Somerset Village Academy",
+    "operator": "Somerset Academy",
+    "enrollment": 238
+  },
+  {
+    "school_num": "06-5717",
+    "name": "South Broward Montessori Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 167
+  },
+  {
+    "school_num": "06-5320",
+    "name": "Summit Academy Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 416
+  },
+  {
+    "school_num": "06-5053",
+    "name": "Suned High Of South Broward",
+    "operator": "Other / Independent",
+    "enrollment": 360
+  },
+  {
+    "school_num": "06-5861",
+    "name": "Suned High School Of North Broward",
+    "operator": "Other / Independent",
+    "enrollment": 350
+  },
+  {
+    "school_num": "06-5401",
+    "name": "Sunfire High School Of Ft Lauderdale",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5060",
+    "name": "Sunfire High School",
+    "operator": "Other / Independent",
+    "enrollment": 408
+  },
+  {
+    "school_num": "06-5481",
+    "name": "Sunrise High School",
+    "operator": "Other / Independent",
+    "enrollment": 457
+  },
+  {
+    "school_num": "06-5400",
+    "name": "Sunshine Elementary Charter School",
+    "operator": "Other / Independent",
+    "enrollment": 202
+  },
+  {
+    "school_num": "06-5182",
+    "name": "The Ben Gamla Preparatory Academy",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5561",
+    "name": "Ucp Early Beginnings",
+    "operator": "Other / Independent",
+    "enrollment": 0
+  },
+  {
+    "school_num": "06-5052",
+    "name": "West Broward Academy",
+    "operator": "Other / Independent",
+    "enrollment": 785
+  },
+  {
+    "school_num": "06-5017",
+    "name": "Avant Garde Academy Foundation K8",
+    "operator": "Other / Independent",
+    "enrollment": 97
+  }
+]

@@ -1,0 +1,23 @@
+# OS / editor / build cruft
+.DS_Store
+__pycache__/
+*.pyc
+node_modules/
+
+# Local app + tooling settings
+.claude/
+
+# Large source downloads — regenerable via the ETL scripts
+data/raw/
+
+# Unused generated artifact (13 MB attendance-zone geometry, not consumed by the app)
+data/processed/orange_boundaries.geojson
+
+# Vendor deck extractions (InSite) — internal reference, not for distribution
+docs/
+
+# Unrelated New Jersey School Explorer artifacts that live in this folder
+NJ_School_Explorer.html
+build_compact.py
+build_explorer.py
+extract_full.py

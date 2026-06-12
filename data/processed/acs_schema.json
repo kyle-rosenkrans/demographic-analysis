@@ -1,0 +1,51 @@
+{
+  "variables": {
+    "B01003_001E": "pop_total",
+    "B01001_003E": "pop_male_u5",
+    "B01001_004E": "pop_male_5_9",
+    "B01001_005E": "pop_male_10_14",
+    "B01001_006E": "pop_male_15_17",
+    "B01001_027E": "pop_female_u5",
+    "B01001_028E": "pop_female_5_9",
+    "B01001_029E": "pop_female_10_14",
+    "B01001_030E": "pop_female_15_17",
+    "B02001_003E": "pop_black_alone_all_ages",
+    "B03002_012E": "pop_hispanic_all_ages",
+    "B19001_001E": "hh_total_for_income",
+    "B19001_002E": "hh_inc_u10k",
+    "B19001_003E": "hh_inc_10_15",
+    "B19001_004E": "hh_inc_15_20",
+    "B19001_005E": "hh_inc_20_25",
+    "B19001_006E": "hh_inc_25_30",
+    "B19001_007E": "hh_inc_30_35",
+    "B19001_008E": "hh_inc_35_40",
+    "B19001_009E": "hh_inc_40_45",
+    "B19001_010E": "hh_inc_45_50",
+    "B19013_001E": "hh_median_income",
+    "B22001_001E": "hh_total_for_snap",
+    "B22001_002E": "hh_snap_recv",
+    "B25003_001E": "hh_total_tenure",
+    "B25003_002E": "hh_owner",
+    "B25003_003E": "hh_renter",
+    "B11001_001E": "hh_total_type",
+    "B11001_002E": "hh_family"
+  },
+  "derived": {
+    "pop_total": "Total population (2023 ACS 5-yr)",
+    "pop_k_4_est": "K-4 student population (est, ages 5-9)",
+    "pop_5_8_est": "5-8 student population (est, ages 10-13)",
+    "pop_9_12_est": "9-12 student population (est, ages 14-17)",
+    "pct_hhi_u50": "% households with HHI below $50k",
+    "pct_snap": "% households receiving SNAP",
+    "hh_median_income": "Median household income",
+    "pct_black": "% Black alone (all ages)",
+    "pct_hispanic": "% Hispanic/Latino (all ages)",
+    "pct_renter": "% renter households",
+    "pct_family": "% family households"
+  },
+  "notes": [
+    "Source: U.S. Census Bureau, American Community Survey 5-Year Estimates, 2023 vintage.",
+    "Grade-band counts are approximations from ACS age bands (K-4 \u2248 ages 5-9, 5-8 \u2248 ages 10-13, 9-12 \u2248 ages 14-17).",
+    "K-8 race/ethnicity percentages use the overall block-group share, same approximation used by most vendors including ESRI Business Analyst."
+  ]
+}

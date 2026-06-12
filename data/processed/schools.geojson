@@ -1,0 +1,181 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.2468097,
+          25.8672524
+        ]
+      },
+      "properties": {
+        "name": "KIPP Miami North",
+        "address": "3000 NW 110th Street",
+        "city": "Miami",
+        "state": "FL",
+        "zip": "33167",
+        "matched_address": "3000, Northwest 102nd Street, Miami, Miami-Dade County, Florida, 33147, United States",
+        "geocode_source": "nominatim",
+        "fl_district": "13",
+        "fl_school_number": null,
+        "role": "incubation"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.165627226048,
+          26.240741926724
+        ]
+      },
+      "properties": {
+        "name": "Charles Drew Elementary",
+        "address": "1000 NW 31st Ave",
+        "city": "Pompano Beach",
+        "state": "FL",
+        "zip": "33069",
+        "matched_address": "1000 NW 31ST AVE, POMPANO BEACH, FL, 33069",
+        "geocode_source": "census",
+        "fl_district": "06",
+        "fl_school_number": "3221",
+        "role": "plp"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.1526376,
+          26.1765089
+        ]
+      },
+      "properties": {
+        "name": "Lloyd Estates Elementary",
+        "address": "3251 NE 9th Ave",
+        "city": "Oakland Park",
+        "state": "FL",
+        "zip": "33334",
+        "matched_address": "Lloyd Estates Elementary School, Northwest 40th Court, Lloyds Estates, Oakland Park, Broward County, Florida, 33309, United States",
+        "geocode_source": "nominatim",
+        "fl_district": "06",
+        "fl_school_number": "1091",
+        "role": "plp"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.132445091255,
+          26.254508748785
+        ]
+      },
+      "properties": {
+        "name": "Robert C. Markham Elementary",
+        "address": "1901 SE 6th Ave",
+        "city": "Pompano Beach",
+        "state": "FL",
+        "zip": "33060",
+        "matched_address": "1901 NW 6TH AVE, POMPANO BEACH, FL, 33060",
+        "geocode_source": "census",
+        "fl_district": "06",
+        "fl_school_number": "1671",
+        "role": "plp"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.1903,
+          26.1828
+        ]
+      },
+      "properties": {
+        "name": "Royal Palm Elementary",
+        "address": "2500 NW 41st St",
+        "city": "Lauderdale Lakes",
+        "state": "FL",
+        "zip": "33309",
+        "matched_address": "2500 NW 41st St, Lauderdale Lakes FL (manual)",
+        "geocode_source": "manual",
+        "fl_district": "06",
+        "fl_school_number": "1851",
+        "role": "plp"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.217168519341,
+          25.991649405599
+        ]
+      },
+      "properties": {
+        "name": "Sunshine Elementary",
+        "address": "6500 SW 21st St",
+        "city": "Miramar",
+        "state": "FL",
+        "zip": "33023",
+        "matched_address": "6500 SW 21ST ST, MIRAMAR, FL, 33023",
+        "geocode_source": "census",
+        "fl_district": "06",
+        "fl_school_number": "1171",
+        "role": "target"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.110676708546,
+          26.238049490107
+        ]
+      },
+      "properties": {
+        "name": "Tedder Elementary",
+        "address": "701 NE 13th Ave",
+        "city": "Pompano Beach",
+        "state": "FL",
+        "zip": "33060",
+        "matched_address": "701 NE 13TH AVE, POMPANO BEACH, FL, 33060",
+        "geocode_source": "census",
+        "fl_district": "06",
+        "fl_school_number": "0571",
+        "role": "plp"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.175263864648,
+          26.158120972537
+        ]
+      },
+      "properties": {
+        "name": "William Dandy Middle",
+        "address": "2400 NW 26th St",
+        "city": "Fort Lauderdale",
+        "state": "FL",
+        "zip": "33311",
+        "matched_address": "2400 NW 26TH ST, FORT LAUDERDALE, FL, 33311",
+        "geocode_source": "census",
+        "fl_district": "06",
+        "fl_school_number": "1071",
+        "role": "target"
+      }
+    }
+  ]
+}

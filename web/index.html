@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KIPP Demographics — Broward · Miami-Dade · Orange</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          kipp: { 50:'#fff7ed', 100:'#ffedd5', 500:'#f97316', 600:'#ea580c', 700:'#c2410c', 900:'#7c2d12' },
+          ink: { 900:'#111827', 700:'#374151', 500:'#6b7280', 300:'#d1d5db', 100:'#f3f4f6' },
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html, body, #app { height: 100%; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:#f9fafb; color:#111827; }
+  .maplibregl-popup-content { font-size: 12px; line-height: 1.35; padding: 8px 10px; }
+  table.data { font-size: 12px; width: 100%; border-collapse: collapse; }
+  table.data th, table.data td { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; white-space: nowrap; }
+  table.data th { color: #6b7280; font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+  table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
