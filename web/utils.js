@@ -57,6 +57,20 @@ export function gradeColor(g){
   return { A:"#15803d", B:"#65a30d", C:"#ca8a04", D:"#ea580c", F:"#b91c1c" }[g] || "#9ca3af";
 }
 
+// FL DOE grade year → school-year label. 2026 -> "2025-26".
+export function schoolYearLabel(y){
+  return y ? `${y - 1}-${String(y).slice(2)}` : "—";
+}
+
+// Latest grade year a performance record actually carries. Records are stamped
+// with data_year by etl/24_parse_school_grades.py; a school absent from the
+// newest FL DOE release keeps its prior-year vintage, so read it per-record
+// rather than assuming the current year everywhere.
+export const PERF_LATEST_YEAR_FALLBACK = 2026;
+export function perfYear(rec){
+  return (rec && rec.data_year) || PERF_LATEST_YEAR_FALLBACK;
+}
+
 // Given an array of numeric values compute quantile breaks for N buckets
 export function quantileBreaks(values, n = 9) {
   const v = values.filter(x => x != null && Number.isFinite(x)).slice().sort((a,b)=>a-b);

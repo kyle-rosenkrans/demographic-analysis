@@ -26,6 +26,9 @@ export const store = createStore({
   showBrowardSBD:    true,               // per-county SBD/boundary map layers
   showMiamiDadeSBD:  true,
   showOrangeSBD:     true,
+  showBrowardPlaces:   false,            // per-county municipal (incorporated place) boundaries
+  showMiamiDadePlaces: false,
+  showOrangePlaces:    false,
   showStepUp:        false,
   showCharters:      false,
   showPublicSchools: false,
@@ -173,6 +176,17 @@ async function syncLayerVisibility(state) {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangeSBD));
   });
 
+  // Per-county municipal (incorporated place) boundary fill + line
+  ["places-brw-fill", "places-brw-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardPlaces));
+  });
+  ["places-mdc-fill", "places-mdc-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadePlaces));
+  });
+  ["places-org-fill", "places-org-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangePlaces));
+  });
+
   // Per-county District labels (HTML markers tagged with .dataset.sbdCounty)
   (window.__sbdLabelMarkers || []).forEach(lm => {
     const el = lm.getElement();
@@ -243,7 +257,8 @@ function App() {
   }, [state.data, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
       state.focusCampus, state.showCharters, state.showPublicSchools,
       state.showUnderutilized, state.showPlp, state.showPlpRadius, state.showStepUp,
-      state.showPerformance, state.showOrangeSBD]);
+      state.showPerformance, state.showOrangeSBD,
+      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces]);
 
   // Fly to county center when county changes (skip first render)
   useEffect(() => {

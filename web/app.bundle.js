@@ -62,6 +62,20 @@ function gradeColor(g){
   return { A:"#15803d", B:"#65a30d", C:"#ca8a04", D:"#ea580c", F:"#b91c1c" }[g] || "#9ca3af";
 }
 
+// FL DOE grade year → school-year label. 2026 -> "2025-26".
+function schoolYearLabel(y){
+  return y ? `${y - 1}-${String(y).slice(2)}` : "—";
+}
+
+// Latest grade year a performance record actually carries. Records are stamped
+// with data_year by etl/24_parse_school_grades.py; a school absent from the
+// newest FL DOE release keeps its prior-year vintage, so read it per-record
+// rather than assuming the current year everywhere.
+const PERF_LATEST_YEAR_FALLBACK = 2026;
+function perfYear(rec){
+  return (rec && rec.data_year) || PERF_LATEST_YEAR_FALLBACK;
+}
+
 // Given an array of numeric values compute quantile breaks for N buckets
 function quantileBreaks(values, n = 9) {
   const v = values.filter(x => x != null && Number.isFinite(x)).slice().sort((a,b)=>a-b);
@@ -267,6 +281,13 @@ async function loadAll() {
     j("./data/orange_capacity.json").catch(() => null),
   ]);
 
+  // ---------- Municipal boundaries (incorporated places) ----------
+  const [browardPlaces, mdcPlaces, orangePlaces] = await Promise.all([
+    j("./data/broward_places.geojson").catch(() => null),
+    j("./data/miamidade_places.geojson").catch(() => null),
+    j("./data/orange_places.geojson").catch(() => null),
+  ]);
+
   // Merge Orange into the combined structures the layers already iterate, so the
   // school-dots / performance / heatmap / rings / PLP code picks it up unchanged.
   const mergedUniversal = universalSchools
@@ -291,6 +312,8 @@ async function loadAll() {
     schoolPerformance: { ...(schoolPerformance || {}), ...(orangePerf || {}) },
     // Orange-specific layers/sources
     bgOrange, orangeSbd, orangeSbdRollup,
+    // Municipal boundaries (incorporated places), per county
+    browardPlaces, mdcPlaces, orangePlaces,
   };
 }
 
@@ -335,6 +358,9 @@ const store = createStore({
   showBrowardSBD:    true,               // per-county SBD/boundary map layers
   showMiamiDadeSBD:  true,
   showOrangeSBD:     true,
+  showBrowardPlaces:   false,            // per-county municipal (incorporated place) boundaries
+  showMiamiDadePlaces: false,
+  showOrangePlaces:    false,
   showStepUp:        false,
   showCharters:      false,
   showPublicSchools: false,
@@ -482,6 +508,17 @@ async function syncLayerVisibility(state) {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangeSBD));
   });
 
+  // Per-county municipal (incorporated place) boundary fill + line
+  ["places-brw-fill", "places-brw-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardPlaces));
+  });
+  ["places-mdc-fill", "places-mdc-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadePlaces));
+  });
+  ["places-org-fill", "places-org-line"].forEach(id => {
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangePlaces));
+  });
+
   // Per-county District labels (HTML markers tagged with .dataset.sbdCounty)
   (window.__sbdLabelMarkers || []).forEach(lm => {
     const el = lm.getElement();
@@ -552,7 +589,8 @@ function App() {
   }, [state.data, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
       state.focusCampus, state.showCharters, state.showPublicSchools,
       state.showUnderutilized, state.showPlp, state.showPlpRadius, state.showStepUp,
-      state.showPerformance, state.showOrangeSBD]);
+      state.showPerformance, state.showOrangeSBD,
+      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces]);
 
   // Fly to county center when county changes (skip first render)
   useEffect(() => {
@@ -1037,7 +1075,7 @@ async function ensurePlpLayer(map, data) {
   });
 }
 
-// ---------- School Performance layer (FL DOE 2024-25 grades + proficiency) ----------
+// ---------- School Performance layer (FL DOE school grades + proficiency) ----------
 // One MapLibre symbol layer whose icons encode three things at once:
 //   • SHAPE  — circle = district, triangle = charter
 //   • COLOR  — % scoring Level 3+ (ELA+Math), red → green
@@ -1121,7 +1159,7 @@ async function ensurePerformanceLayer(map, data) {
         id: p.id, name: p.name, role: p.role, county: p.county,
         enrollment: enroll,
         ela_math: rec.ela_math, ela: rec.ela, math: rec.math,
-        grade: rec.grade_2025 || "",
+        grade: rec[`grade_${perfYear(rec)}`] || "",
       },
     });
   }
@@ -1536,7 +1574,9 @@ function PerformanceBlock({ perf }) {
   const SUBJECTS = [
     ["ELA", perf.ela], ["Math", perf.math], ["Science", perf.science], ["Soc. Studies", perf.social_studies],
   ];
-  const grades = [["'23", perf.grade_2023], ["'24", perf.grade_2024], ["'25", perf.grade_2025]];
+  const dy = perfYear(perf);
+  const latestGrade = perf[`grade_${dy}`];
+  const grades = [dy - 2, dy - 1, dy].map(y => [`'${String(y).slice(2)}`, perf[`grade_${y}`]]);
   const rp = perf.race_pct || {};
   const RACE = [
     ["Black", rp.black, "#7e22ce"],
@@ -1552,14 +1592,14 @@ function PerformanceBlock({ perf }) {
     <div class="bg-ink-50 rounded-md p-2.5 space-y-2.5">
       <div class="flex items-baseline justify-between">
         <div class="text-[11px] font-semibold text-ink-700">Performance & Demographics</div>
-        <span class="text-[10px] text-ink-500">FL DOE 2024-25</span>
+        <span class="text-[10px] text-ink-500">FL DOE ${schoolYearLabel(dy)}</span>
       </div>
 
       <!-- Letter grade + trend -->
       <div class="flex items-center gap-2.5">
-        <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(perf.grade_2025)};
+        <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(latestGrade)};
                     color:#fff;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          ${perf.grade_2025 || "—"}
+          ${latestGrade || "—"}
         </div>
         <div class="flex-1">
           <div class="text-[10px] text-ink-500 mb-0.5">School grade trend</div>
@@ -1624,7 +1664,7 @@ function PerformanceBlock({ perf }) {
       ` : null}
 
       <div class="text-[10px] text-ink-400 leading-snug pt-1 border-t border-ink-100">
-        Proficiency & grades: FL DOE School Grades 2024-25. Race/ELL: FL DOE Membership 2025-26 Survey 2.
+        Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
         ESE not available per-school from FL DOE downloads.
       </div>
     </div>
@@ -1845,6 +1885,9 @@ function LayersPanel({ state, store }) {
     stepup: data.stepupSchools?.features.length || 0,
     plp: Object.keys(data.plpSchools || {}).length,
     perf: data.schoolPerformance ? live.filter(f => data.schoolPerformance[perfKey(f.properties)]).length : 0,
+    browardPlaces: data.browardPlaces?.features.length || 0,
+    mdcPlaces: data.mdcPlaces?.features.length || 0,
+    orangePlaces: data.orangePlaces?.features.length || 0,
   };
 
   return html`
@@ -1910,6 +1953,12 @@ function LayersPanel({ state, store }) {
                    onChange=${e => store.set({ showBrowardSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D7</i></span>
           </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showBrowardPlaces}
+                   onChange=${e => store.set({ showBrowardPlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.browardPlaces}</span>
+          </label>
         </div>
 
         <div class="space-y-1">
@@ -1919,6 +1968,12 @@ function LayersPanel({ state, store }) {
                    onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D9</i></span>
           </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showMiamiDadePlaces}
+                   onChange=${e => store.set({ showMiamiDadePlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.mdcPlaces}</span>
+          </label>
         </div>
 
         <div class="space-y-1">
@@ -1927,6 +1982,12 @@ function LayersPanel({ state, store }) {
             <input type="checkbox" checked=${state.showOrangeSBD}
                    onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D7</i></span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showOrangePlaces}
+                   onChange=${e => store.set({ showOrangePlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.orangePlaces}</span>
           </label>
         </div>
 
@@ -2150,6 +2211,57 @@ function ensureSbdLayer(map, tag, sbdSrc, focusDistrict, focusCounty) {
   }
 }
 
+// ---------- Municipal boundaries (incorporated places), per county ----------
+// Unlike SBDs these have no per-district focus state to refresh, so the
+// source + layers are created once and left alone (idempotent).
+function buildPlacesFC(placesSrc, countyTag) {
+  return {
+    type: "FeatureCollection",
+    features: placesSrc.features.map(f => ({
+      type: "Feature",
+      properties: { name: f.properties.name, county: countyTag },
+      geometry: JSON.parse(JSON.stringify(f.geometry)),
+    })),
+  };
+}
+
+function ensurePlacesLayer(map, tag, placesSrc) {
+  if (!placesSrc) return;
+  const srcId = `places-${tag}`;
+  const fillId = `places-${tag}-fill`;
+  const lineId = `places-${tag}-line`;
+  if (map.getSource(srcId)) return; // already initialized
+
+  map.addSource(srcId, { type: "geojson", data: buildPlacesFC(placesSrc, tag) });
+  map.addLayer({
+    id: fillId, type: "fill", source: srcId,
+    layout: { visibility: "none" },
+    paint: { "fill-color": "#ffffff", "fill-opacity": 0.02 },
+  });
+  map.addLayer({
+    id: lineId, type: "line", source: srcId,
+    layout: { visibility: "none" },
+    // White + a dark halo-ish width keeps this legible whether it's sitting on the
+    // plain dark basemap or on top of a saturated SBD fill color.
+    paint: { "line-color": "#ffffff", "line-width": 1.4, "line-opacity": 0.85, "line-dasharray": [2, 1.5] },
+  });
+
+  // Hover popup with the municipality name. No click handler here — the SBD
+  // fill sits underneath and already owns click-to-focus-district; stacking
+  // a second click behavior on the same point would fight it.
+  const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+  map.on("mousemove", fillId, e => {
+    const vis = map.getLayoutProperty(fillId, "visibility");
+    if (!vis || vis === "none") return;
+    const f = e.features?.[0]; if (!f) return;
+    popup.setLngLat(e.lngLat)
+      .setHTML(`<div style="font-size:12px"><strong>${f.properties.name}</strong></div>`)
+      .addTo(map);
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", fillId, () => { popup.remove(); map.getCanvas().style.cursor = ""; });
+}
+
 async function renderSBDLayers(state) {
   const map = await getMapIdle();
   const { data, focusDistrict, county, showStepUp } = state;
@@ -2162,6 +2274,10 @@ async function renderSBDLayers(state) {
   ensureSbdLayer(map, "brw", data.sbd,    focusDistrict, county === "broward"   ? "brw" : null);
   ensureSbdLayer(map, "mdc", data.mdcSbd, focusDistrict, county === "miamidade" ? "mdc" : null);
   ensureSbdLayer(map, "org", data.orangeSbd, focusDistrict, county === "orange" ? "org" : null);
+
+  ensurePlacesLayer(map, "brw", data.browardPlaces);
+  ensurePlacesLayer(map, "mdc", data.mdcPlaces);
+  ensurePlacesLayer(map, "org", data.orangePlaces);
 
   // District labels — recreated from whichever counties have layers. Visibility
   // toggled in app.js syncLayerVisibility based on per-county flags.
@@ -2209,6 +2325,15 @@ async function renderSBDLayers(state) {
     const sbdSrc = county === "miamidade" ? data.mdcSbd : data.sbd;
     const feat = sbdSrc?.features.find(f => Number(f.properties.district) === focusDistrict);
     if (feat) fitBounds(map, feat);
+  }
+
+  // Municipal boundaries read as a finer overlay above the SBD fill, but
+  // still below school points/rings — pull them up every render since the
+  // SBD fill/line layers above get removed + re-added each time (Safari
+  // tiling workaround) and would otherwise climb back on top.
+  for (const id of ["places-brw-fill", "places-brw-line", "places-mdc-fill", "places-mdc-line",
+                     "places-org-fill", "places-org-line"]) {
+    if (map.getLayer(id)) map.moveLayer(id);
   }
 
   // Keep schools on top — sbd layers just got re-added

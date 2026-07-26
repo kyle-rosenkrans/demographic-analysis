@@ -106,6 +106,57 @@ function ensureSbdLayer(map, tag, sbdSrc, focusDistrict, focusCounty) {
   }
 }
 
+// ---------- Municipal boundaries (incorporated places), per county ----------
+// Unlike SBDs these have no per-district focus state to refresh, so the
+// source + layers are created once and left alone (idempotent).
+function buildPlacesFC(placesSrc, countyTag) {
+  return {
+    type: "FeatureCollection",
+    features: placesSrc.features.map(f => ({
+      type: "Feature",
+      properties: { name: f.properties.name, county: countyTag },
+      geometry: JSON.parse(JSON.stringify(f.geometry)),
+    })),
+  };
+}
+
+function ensurePlacesLayer(map, tag, placesSrc) {
+  if (!placesSrc) return;
+  const srcId = `places-${tag}`;
+  const fillId = `places-${tag}-fill`;
+  const lineId = `places-${tag}-line`;
+  if (map.getSource(srcId)) return; // already initialized
+
+  map.addSource(srcId, { type: "geojson", data: buildPlacesFC(placesSrc, tag) });
+  map.addLayer({
+    id: fillId, type: "fill", source: srcId,
+    layout: { visibility: "none" },
+    paint: { "fill-color": "#ffffff", "fill-opacity": 0.02 },
+  });
+  map.addLayer({
+    id: lineId, type: "line", source: srcId,
+    layout: { visibility: "none" },
+    // White + a dark halo-ish width keeps this legible whether it's sitting on the
+    // plain dark basemap or on top of a saturated SBD fill color.
+    paint: { "line-color": "#ffffff", "line-width": 1.4, "line-opacity": 0.85, "line-dasharray": [2, 1.5] },
+  });
+
+  // Hover popup with the municipality name. No click handler here — the SBD
+  // fill sits underneath and already owns click-to-focus-district; stacking
+  // a second click behavior on the same point would fight it.
+  const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+  map.on("mousemove", fillId, e => {
+    const vis = map.getLayoutProperty(fillId, "visibility");
+    if (!vis || vis === "none") return;
+    const f = e.features?.[0]; if (!f) return;
+    popup.setLngLat(e.lngLat)
+      .setHTML(`<div style="font-size:12px"><strong>${f.properties.name}</strong></div>`)
+      .addTo(map);
+    map.getCanvas().style.cursor = "pointer";
+  });
+  map.on("mouseleave", fillId, () => { popup.remove(); map.getCanvas().style.cursor = ""; });
+}
+
 async function renderSBDLayers(state) {
   const map = await getMapIdle();
   const { data, focusDistrict, county, showStepUp } = state;
@@ -118,6 +169,10 @@ async function renderSBDLayers(state) {
   ensureSbdLayer(map, "brw", data.sbd,    focusDistrict, county === "broward"   ? "brw" : null);
   ensureSbdLayer(map, "mdc", data.mdcSbd, focusDistrict, county === "miamidade" ? "mdc" : null);
   ensureSbdLayer(map, "org", data.orangeSbd, focusDistrict, county === "orange" ? "org" : null);
+
+  ensurePlacesLayer(map, "brw", data.browardPlaces);
+  ensurePlacesLayer(map, "mdc", data.mdcPlaces);
+  ensurePlacesLayer(map, "org", data.orangePlaces);
 
   // District labels — recreated from whichever counties have layers. Visibility
   // toggled in app.js syncLayerVisibility based on per-county flags.
@@ -165,6 +220,15 @@ async function renderSBDLayers(state) {
     const sbdSrc = county === "miamidade" ? data.mdcSbd : data.sbd;
     const feat = sbdSrc?.features.find(f => Number(f.properties.district) === focusDistrict);
     if (feat) fitBounds(map, feat);
+  }
+
+  // Municipal boundaries read as a finer overlay above the SBD fill, but
+  // still below school points/rings — pull them up every render since the
+  // SBD fill/line layers above get removed + re-added each time (Safari
+  // tiling workaround) and would otherwise climb back on top.
+  for (const id of ["places-brw-fill", "places-brw-line", "places-mdc-fill", "places-mdc-line",
+                     "places-org-fill", "places-org-line"]) {
+    if (map.getLayer(id)) map.moveLayer(id);
   }
 
   // Keep schools on top — sbd layers just got re-added

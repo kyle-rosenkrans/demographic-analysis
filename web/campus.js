@@ -6,7 +6,7 @@ import { useEffect } from "https://esm.sh/preact@10.22.0/hooks";
 import htm from "https://esm.sh/htm@3.1.1";
 import { getMapIdle } from "./app.js";
 import { perfKey } from "./state.js";
-import { fmt, profColor, profColorExpr, gradeColor } from "./utils.js";
+import { fmt, profColor, profColorExpr, gradeColor, schoolYearLabel, perfYear } from "./utils.js";
 
 const html = htm.bind(h);
 
@@ -370,7 +370,7 @@ async function ensurePlpLayer(map, data) {
   });
 }
 
-// ---------- School Performance layer (FL DOE 2024-25 grades + proficiency) ----------
+// ---------- School Performance layer (FL DOE school grades + proficiency) ----------
 // One MapLibre symbol layer whose icons encode three things at once:
 //   • SHAPE  — circle = district, triangle = charter
 //   • COLOR  — % scoring Level 3+ (ELA+Math), red → green
@@ -454,7 +454,7 @@ async function ensurePerformanceLayer(map, data) {
         id: p.id, name: p.name, role: p.role, county: p.county,
         enrollment: enroll,
         ela_math: rec.ela_math, ela: rec.ela, math: rec.math,
-        grade: rec.grade_2025 || "",
+        grade: rec[`grade_${perfYear(rec)}`] || "",
       },
     });
   }
@@ -869,7 +869,9 @@ function PerformanceBlock({ perf }) {
   const SUBJECTS = [
     ["ELA", perf.ela], ["Math", perf.math], ["Science", perf.science], ["Soc. Studies", perf.social_studies],
   ];
-  const grades = [["'23", perf.grade_2023], ["'24", perf.grade_2024], ["'25", perf.grade_2025]];
+  const dy = perfYear(perf);
+  const latestGrade = perf[`grade_${dy}`];
+  const grades = [dy - 2, dy - 1, dy].map(y => [`'${String(y).slice(2)}`, perf[`grade_${y}`]]);
   const rp = perf.race_pct || {};
   const RACE = [
     ["Black", rp.black, "#7e22ce"],
@@ -885,14 +887,14 @@ function PerformanceBlock({ perf }) {
     <div class="bg-ink-50 rounded-md p-2.5 space-y-2.5">
       <div class="flex items-baseline justify-between">
         <div class="text-[11px] font-semibold text-ink-700">Performance & Demographics</div>
-        <span class="text-[10px] text-ink-500">FL DOE 2024-25</span>
+        <span class="text-[10px] text-ink-500">FL DOE ${schoolYearLabel(dy)}</span>
       </div>
 
       <!-- Letter grade + trend -->
       <div class="flex items-center gap-2.5">
-        <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(perf.grade_2025)};
+        <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(latestGrade)};
                     color:#fff;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          ${perf.grade_2025 || "—"}
+          ${latestGrade || "—"}
         </div>
         <div class="flex-1">
           <div class="text-[10px] text-ink-500 mb-0.5">School grade trend</div>
@@ -957,7 +959,7 @@ function PerformanceBlock({ perf }) {
       ` : null}
 
       <div class="text-[10px] text-ink-400 leading-snug pt-1 border-t border-ink-100">
-        Proficiency & grades: FL DOE School Grades 2024-25. Race/ELL: FL DOE Membership 2025-26 Survey 2.
+        Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
         ESE not available per-school from FL DOE downloads.
       </div>
     </div>

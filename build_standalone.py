@@ -60,6 +60,8 @@ FILES = {
     "schoolCapacity": "school_capacity.json",
     "plpSchools": "plp_schools.json",
     "schoolPerformance": "school_performance.json",
+    "browardPlaces": "broward_places.geojson",
+    "mdcPlaces": "miamidade_places.geojson",
 }
 
 
@@ -93,6 +95,7 @@ def main():
         "acs": "acs_orange.json", "bg": "orange_blockgroups.geojson", "rings": "orange_rings.json",
         "plp": "orange_plp.json", "enroll": "orange_enrollment_by_school.json",
         "sbd": "orange_sbd.geojson", "sbdroll": "orange_sbd_rollup.json", "cap": "orange_capacity.json",
+        "places": "orange_places.geojson",
     }
     og = {k: load(fn) for k, fn in OG.items()}
     if og.get("acs"):
@@ -112,7 +115,8 @@ def main():
     if og.get("sbd"): data["orangeSbd"] = og["sbd"]
     if og.get("sbdroll"): data["orangeSbdRollup"] = og["sbdroll"]
     if og.get("bound"): data["orangeBoundaries"] = og["bound"]
-    print("   + Orange merged (schools, performance, acs, rings, plp, enroll, sbd, boundaries)")
+    if og.get("places"): data["orangePlaces"] = og["places"]
+    print("   + Orange merged (schools, performance, acs, rings, plp, enroll, sbd, boundaries, places)")
 
     print("Reading bundled app…")
     with open(bundle_path, encoding="utf-8") as f:

@@ -53,9 +53,33 @@ python3 etl/11_fldoe_enrollment.py         # 5 years of FL DOE Survey-2 membersh
 python3 etl/12_charter_operators.py        # Identify + roll up major charter operators
 python3 etl/13_projections_2030.py         # DIY 2025→2030 projections
 python3 etl/06_aggregate.py                # Re-roll to include projection fields
+python3 etl/23_fetch_municipal_boundaries.py            # City/town limits (TIGER incorporated places)
+python3 etl/24_parse_school_grades.py data/raw/SchoolGrades26.xlsx   # School grades + proficiency
 ```
 
 A one-shot `make all` target is a reasonable future enhancement.
+
+### Refreshing school grades each year
+
+FL DOE publishes a new `SchoolGrades<NN>.xlsx` each fall. Download it from the
+[School Grades page](https://www.fldoe.org/accountability/data-sys/school-grades-and-district-grades-accountability-reports/school-grades/)
+(their CDN blocks scripted downloads, so grab it in a browser), drop it in
+`data/raw/`, then:
+
+```bash
+python3 etl/24_parse_school_grades.py data/raw/SchoolGrades27.xlsx
+```
+
+It refreshes proficiency, letter grades and `ed_pct` in
+`school_performance.json` + `orange_school_performance.json` while preserving
+the race/ELL/enrollment fields those files carry from the membership surveys.
+Columns are matched by header name, so it tolerates FL DOE reordering and fails
+loudly if a needed column disappears.
+
+Each record is stamped with `data_year`; the UI reads it to caption vintage
+per-school, so a school missing from the newest release keeps its prior-year
+numbers **and** is labeled with that older year rather than being shown as
+current. No UI edit is needed for a normal year-over-year refresh.
 
 ## Data sources
 
@@ -66,6 +90,9 @@ A one-shot `make all` target is a reasonable future enhancement.
 | School Board District polygons | Broward County GIS Hub | 2022 |
 | BCPS attendance-zone polygons | ArcGIS AllSchoolBoundaries service | current |
 | 5-year enrollment by school | FL DOE Membership Survey 2 | 2021-22 through 2025-26 |
+| School grades + proficiency (% Level 3+) | FL DOE School Grades (`SchoolGrades26.xlsx`) | 2025-26 |
+| Facility capacity / utilization (School of Hope) | FL DOE FISH Level of Service reports | 2025-26 |
+| Municipal boundaries (city/town limits) | Census TIGERweb incorporated places | current |
 | Persistently Low-Performing list | FL DOE | 2024-25 |
 | Private school directory (Step Up) | FL DOE Private School List | current |
 | 2025-2030 projections | DIY: ACS total-pop trend + FL DOE cohort CAGR | — |

@@ -184,6 +184,9 @@ export function LayersPanel({ state, store }) {
     stepup: data.stepupSchools?.features.length || 0,
     plp: Object.keys(data.plpSchools || {}).length,
     perf: data.schoolPerformance ? live.filter(f => data.schoolPerformance[perfKey(f.properties)]).length : 0,
+    browardPlaces: data.browardPlaces?.features.length || 0,
+    mdcPlaces: data.mdcPlaces?.features.length || 0,
+    orangePlaces: data.orangePlaces?.features.length || 0,
   };
 
   return html`
@@ -249,6 +252,12 @@ export function LayersPanel({ state, store }) {
                    onChange=${e => store.set({ showBrowardSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D7</i></span>
           </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showBrowardPlaces}
+                   onChange=${e => store.set({ showBrowardPlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.browardPlaces}</span>
+          </label>
         </div>
 
         <div class="space-y-1">
@@ -258,6 +267,12 @@ export function LayersPanel({ state, store }) {
                    onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D9</i></span>
           </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showMiamiDadePlaces}
+                   onChange=${e => store.set({ showMiamiDadePlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.mdcPlaces}</span>
+          </label>
         </div>
 
         <div class="space-y-1">
@@ -266,6 +281,12 @@ export function LayersPanel({ state, store }) {
             <input type="checkbox" checked=${state.showOrangeSBD}
                    onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
             <span class="lyr">School Board Districts<i>D1–D7</i></span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showOrangePlaces}
+                   onChange=${e => store.set({ showOrangePlaces: e.target.checked })} />
+            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
+            <span class="cnt">${counts.orangePlaces}</span>
           </label>
         </div>
 

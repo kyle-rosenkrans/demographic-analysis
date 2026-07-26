@@ -35,12 +35,14 @@ FILES = {
     "mdcSchools": "miamidade_schools.geojson", "universalSchools": "universal_schools.geojson",
     "universalRings": "universal_rings.json", "schoolCapacity": "school_capacity.json",
     "plpSchools": "plp_schools.json", "schoolPerformance": "school_performance.json",
+    "browardPlaces": "broward_places.geojson", "mdcPlaces": "miamidade_places.geojson",
 }
 OG = {
     "u": "orange_universal_schools.geojson", "perf": "orange_school_performance.json",
     "acs": "acs_orange.json", "bg": "orange_blockgroups.geojson", "rings": "orange_rings.json",
     "plp": "orange_plp.json", "enroll": "orange_enrollment_by_school.json",
     "sbd": "orange_sbd.geojson", "sbdroll": "orange_sbd_rollup.json", "cap": "orange_capacity.json",
+    "places": "orange_places.geojson",
 }
 
 
@@ -158,6 +160,7 @@ def main():
     if og.get("bg"): data["bgOrange"] = thin_fc(og["bg"])
     if og.get("sbd"): data["orangeSbd"] = thin_fc(og["sbd"])
     if og.get("sbdroll"): data["orangeSbdRollup"] = og["sbdroll"]
+    if og.get("places"): data["orangePlaces"] = thin_fc(og["places"])
 
     with open(bundle_path, encoding="utf-8") as f:
         bundle = f.read()

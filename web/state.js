@@ -67,6 +67,13 @@ export async function loadAll() {
     j("./data/orange_capacity.json").catch(() => null),
   ]);
 
+  // ---------- Municipal boundaries (incorporated places) ----------
+  const [browardPlaces, mdcPlaces, orangePlaces] = await Promise.all([
+    j("./data/broward_places.geojson").catch(() => null),
+    j("./data/miamidade_places.geojson").catch(() => null),
+    j("./data/orange_places.geojson").catch(() => null),
+  ]);
+
   // Merge Orange into the combined structures the layers already iterate, so the
   // school-dots / performance / heatmap / rings / PLP code picks it up unchanged.
   const mergedUniversal = universalSchools
@@ -91,6 +98,8 @@ export async function loadAll() {
     schoolPerformance: { ...(schoolPerformance || {}), ...(orangePerf || {}) },
     // Orange-specific layers/sources
     bgOrange, orangeSbd, orangeSbdRollup,
+    // Municipal boundaries (incorporated places), per county
+    browardPlaces, mdcPlaces, orangePlaces,
   };
 }
 
