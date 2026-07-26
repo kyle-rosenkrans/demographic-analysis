@@ -13,10 +13,15 @@ Run on your Mac (where the iCloud data files are readable):
 Output:
     KIPP Demographics (standalone).html   (in this folder)
 
-If you change anything under web/*.js you must re-bundle app.bundle.js with
-esbuild before rebuilding; otherwise just re-run this to refresh the baked data.
+If you change anything under web/*.js, regenerate web/app.bundle.js first
+(python3 build_bundle.py — a plain concatenator, no esbuild/node needed for
+this project's module graph), then re-run this to refresh the baked data.
+
+The <html ...> tag attributes and the whole <head>...</head> block (design
+tokens, Tailwind config, fonts) are read live from web/index.html rather than
+duplicated here, so the standalone build always matches the dev version.
 """
-import json, os, sys
+import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PROC = os.path.join(ROOT, "data", "processed")
@@ -113,36 +118,29 @@ def main():
     with open(bundle_path, encoding="utf-8") as f:
         bundle = f.read()
 
+    print("Reading web/index.html for <html> attrs + <head>…")
+    with open(os.path.join(WEB, "index.html"), encoding="utf-8") as f:
+        shell = f.read()
+    html_attrs_m = re.search(r"<html\s+([^>]*)>", shell)
+    head_m = re.search(r"<head>(.*?)</head>", shell, re.DOTALL)
+    if not html_attrs_m or not head_m:
+        sys.exit("Couldn't find <html ...> / <head>...</head> in web/index.html")
+    html_attrs = html_attrs_m.group(1).strip()
+    head_inner = head_m.group(1)
+    # Drop the module script tag — the standalone build inlines the bundle instead.
+    head_inner = re.sub(r'\n?<script type="module" src="\./app\.js"></script>\n?', "\n", head_inner)
+    head_inner = head_inner.replace(
+        "<title>KIPP Demographics — Broward · Miami-Dade · Orange</title>",
+        "<title>KIPP Demographics — Broward · Miami-Dade · Orange (standalone)</title>",
+    )
+
     data_json = json.dumps(data, separators=(",", ":"), allow_nan=False, default=str)
     # </script> can't appear literally inside an inline script
     data_json = data_json.replace("</", "<\\/")
 
     html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KIPP Demographics — Broward · Miami-Dade · Orange</title>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {{ theme: {{ extend: {{ colors: {{
-    kipp: {{ 50:'#fff7ed',100:'#ffedd5',500:'#f97316',600:'#ea580c',700:'#c2410c',900:'#7c2d12' }},
-    ink: {{ 900:'#111827',700:'#374151',500:'#6b7280',300:'#d1d5db',100:'#f3f4f6' }} }} }} }} }};
-</script>
-<style>
-  html, body, #app {{ height: 100%; margin: 0; }}
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:#f9fafb; color:#111827; }}
-  .maplibregl-popup-content {{ font-size: 12px; line-height: 1.35; padding: 8px 10px; }}
-  table.data {{ font-size: 12px; width: 100%; border-collapse: collapse; }}
-  table.data th, table.data td {{ padding: 4px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; white-space: nowrap; }}
-  table.data th {{ color: #6b7280; font-weight: 500; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }}
-  table.data td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-  .scrollbar-thin::-webkit-scrollbar {{ width: 6px; height: 6px; }}
-  .scrollbar-thin::-webkit-scrollbar-thumb {{ background: #d1d5db; border-radius: 3px; }}
-  .pill {{ display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 500; }}
-</style>
-</head>
+<html {html_attrs}>
+<head>{head_inner}</head>
 <body>
 <div id="app"></div>
 <script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>

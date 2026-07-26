@@ -54,11 +54,73 @@ export function moveSchoolsOnTop(m) {
   }
 }
 
+// ---------- Display / theme UI state (persisted separately from app data state) ----------
+const UI_KEY = "kipp-demographics-ui";
+const UI_DEFAULTS = { ui: "dark", layout: "dock", theme: "miami", density: "comfortable", markers: "solid", rail: "on" };
+const TILES = {
+  dark: [
+    "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+    "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  ],
+  light: [
+    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+    "https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  ],
+};
+function tileSet(mode) { return TILES[mode] || TILES.dark; }
+function loadUi() {
+  try { return { ...UI_DEFAULTS, ...JSON.parse(localStorage.getItem(UI_KEY) || "{}") }; }
+  catch (e) { return { ...UI_DEFAULTS }; }
+}
+function applyMarkerStyle(m, mode) {
+  const hollow = mode === "hollow";
+  const rows = [
+    ["school-dots-public",        hollow ? 0.16 : 0.82, hollow ? 2 : 1,   hollow ? "#2563eb" : "#ffffff"],
+    ["school-dots-charter",       hollow ? 0.16 : 0.9,  hollow ? 2 : 2,   hollow ? "#f59e0b" : "#78350f"],
+    ["school-dots-underutilized", hollow ? 0.16 : 0.75, hollow ? 2 : 1.5, hollow ? "#16a34a" : "#ffffff"],
+  ];
+  for (const [id, op, sw, sc] of rows) {
+    if (!m.getLayer(id)) continue;
+    m.setPaintProperty(id, "circle-opacity", op);
+    m.setPaintProperty(id, "circle-stroke-width", sw);
+    if (id !== "school-dots-underutilized") m.setPaintProperty(id, "circle-stroke-color", sc);
+  }
+}
+function applyUi(u) {
+  const r = document.documentElement;
+  r.dataset.ui = u.ui; r.dataset.layout = u.layout; r.dataset.theme = u.theme;
+  r.dataset.density = u.density; r.dataset.markers = u.markers; r.dataset.rail = u.rail;
+  try { localStorage.setItem(UI_KEY, JSON.stringify(u)); } catch (e) {}
+  mapReady.then((m) => {
+    const s = m.getSource("carto");
+    if (s && s.setTiles) s.setTiles(tileSet(u.ui));
+    applyMarkerStyle(m, u.markers);
+    setTimeout(() => m.resize(), 240);
+  });
+}
+
+const REGIONS = [
+  { id: "broward",   label: "Broward",     center: [-80.22, 26.15] },
+  { id: "miamidade", label: "Miami-Dade",  center: [-80.35, 25.75] },
+  { id: "orange",    label: "Orange",      center: [-81.34, 28.51] },
+];
+const ACCENTS = [
+  { id: "miami",    label: "Miami",    color: "#F9A21A" },
+  { id: "newark",   label: "Newark",   color: "#57C0E9" },
+  { id: "paterson", label: "Paterson", color: "#EE3C37" },
+  { id: "camden",   label: "Camden",   color: "#C3D52E" },
+];
+
 // ---------- Map singleton ----------
 let map = null;
 const mapReady = new Promise(resolve => { window.__mapResolve = resolve; });
 
 function initMap() {
+  const initialUi = loadUi();
   map = new maplibregl.Map({
     container: "map",
     style: {
@@ -66,12 +128,7 @@ function initMap() {
       sources: {
         carto: {
           type: "raster",
-          tiles: [
-            "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-            "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-            "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-            "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-          ],
+          tiles: tileSet(initialUi.ui),
           tileSize: 256,
           attribution: "© OpenStreetMap © CARTO",
         },
@@ -83,9 +140,13 @@ function initMap() {
     zoom: 6.3,
     attributionControl: true,
   });
-  map.addControl(new maplibregl.NavigationControl(), "top-right");
-  map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }));
-  map.on("load", () => { window.__map = map; window.__mapResolve(map); });
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
+  map.on("load", () => {
+    window.__map = map;
+    applyMarkerStyle(map, initialUi.markers);
+    window.__mapResolve(map);
+  });
 }
 
 export function getMap() { return mapReady; }
@@ -163,6 +224,8 @@ async function syncLayerVisibility(state) {
 // ---------- App shell ----------
 function App() {
   const [state, setState] = useState(store.get());
+  const [ui, setUi] = useState(loadUi());
+  const [menu, setMenu] = useState(false);
   const isFirstCounty = useRef(true);
 
   useEffect(() => store.subscribe(setState), []);
@@ -172,6 +235,7 @@ function App() {
   useEffect(() => {
     if (!map && document.getElementById("map")) initMap();
   });
+  useEffect(() => { applyUi(ui); }, [ui]);
 
   // Layer visibility sync
   useEffect(() => {
@@ -185,38 +249,43 @@ function App() {
   useEffect(() => {
     if (!state.data) return;
     if (isFirstCounty.current) { isFirstCounty.current = false; return; }
-    const center = state.county === "miamidade" ? [-80.35, 25.75]
-      : state.county === "orange" ? [-81.34, 28.51]
-      : [-80.22, 26.15];
-    mapReady.then(m => m.flyTo({ center, zoom: 9.2, duration: 700 }));
+    const region = REGIONS.find(r => r.id === state.county) || REGIONS[0];
+    mapReady.then(m => m.flyTo({ center: region.center, zoom: 9.2, duration: 700 }));
   }, [state.county]);
 
   if (!state.data) {
-    return html`<div class="h-full flex items-center justify-center text-ink-500">
-      <div class="text-center">
-        <div class="animate-spin w-8 h-8 border-4 border-kipp-500 border-t-transparent rounded-full mx-auto mb-3"></div>
-        <div>Loading demographics…</div>
+    return html`<div class="shell" style="align-items:center;justify-content:center">
+      <div style="text-align:center">
+        <div style="width:32px;height:32px;border-radius:50%;border:4px solid var(--accent);border-top-color:transparent;margin:0 auto 12px;animation:spin 0.8s linear infinite"></div>
+        <div style="font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-500)">Loading demographics…</div>
       </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     </div>`;
   }
 
+  return html`<${Shell} state=${state} store=${store} ui=${ui} setUi=${setUi} menu=${menu} setMenu=${setMenu} />`;
+}
+
+function Shell({ state, store, ui, setUi, menu, setMenu }) {
   return html`
-    <div class="h-full flex flex-col">
-      ${TopBar({ state, store })}
-      <div class="flex-1 flex overflow-hidden">
-        <aside class="w-[420px] bg-white border-r border-ink-100 overflow-y-auto scrollbar-thin flex-shrink-0">
+    <div class="shell">
+      ${TopBar({ state, store, ui, setUi, menu, setMenu })}
+      <div class="workspace" onClick=${() => menu && setMenu(false)}>
+        <main class="stage">
+          <div id="map" class="absolute inset-0"></div>
+        </main>
+        <aside class="rail scrollbar-thin">
           <${SchoolPanel}    state=${state} store=${store} />
           <${LayersPanel}    state=${state} store=${store} />
           <${DistrictPanel}  state=${state} store=${store} />
         </aside>
-        <main class="flex-1 relative">
-          <div id="map" class="absolute inset-0"></div>
-          ${state.showHeatMap ? html`
-            <div id="heatmap-legend"
-                 class="absolute bottom-4 left-4 bg-white/95 backdrop-blur px-3 py-2 rounded-md shadow-sm border border-ink-100 text-[11px]">
-            </div>` : null}
-          ${state.showPerformance ? PerfLegend() : null}
-        </main>
+        <div class="railtoggle">
+          <button class="mapbtn" onClick=${() => setUi({ ...ui, rail: ui.rail === "on" ? "off" : "on" })}>
+            ${ui.rail === "on" ? "Hide panel" : "Panel"}
+          </button>
+        </div>
+        ${state.showHeatMap ? html`<div id="heatmap-legend" class="legend"></div>` : null}
+        ${state.showPerformance ? PerfLegend() : null}
       </div>
     </div>
   `;
@@ -226,35 +295,65 @@ function App() {
 function PerfLegend() {
   const gradient = `linear-gradient(to right, ${PROF_STOPS.map(([v,c]) => `${c} ${v}%`).join(", ")})`;
   return html`
-    <div class="absolute bottom-4 left-4 bg-white/95 backdrop-blur px-3 py-2.5 rounded-md shadow-sm border border-ink-100 text-[11px] w-[210px]">
-      <div class="font-semibold text-ink-800 mb-1">School Performance</div>
-      <div class="text-ink-500 mb-1">% scoring Level 3+ (ELA+Math)</div>
+    <div class="legend perf">
+      <div class="lgtitle" style="font-weight:600;margin-bottom:3px">School Performance</div>
+      <div style="color:var(--ink-500);margin-bottom:5px">% scoring Level 3+ (ELA+Math)</div>
       <div style="height:9px;border-radius:3px;background:${gradient}"></div>
-      <div class="flex justify-between text-ink-400 mt-0.5"><span>0%</span><span>50%</span><span>100%</span></div>
-      <div class="flex items-center gap-3 mt-2 pt-2 border-t border-ink-100">
-        <span class="flex items-center gap-1">
+      <div style="display:flex;justify-content:space-between;color:var(--ink-400);margin-top:2px"><span>0%</span><span>50%</span><span>100%</span></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)">
+        <span style="display:flex;align-items:center;gap:4px">
           <svg width="13" height="13"><circle cx="6.5" cy="6.5" r="5" fill="#94a3b8" stroke="#fff"></circle></svg>
-          <span class="text-ink-600">District</span>
+          <span>District</span>
         </span>
-        <span class="flex items-center gap-1">
+        <span style="display:flex;align-items:center;gap:4px">
           <svg width="13" height="13"><polygon points="6.5,1 12,12 1,12" fill="#94a3b8" stroke="#fff"></polygon></svg>
-          <span class="text-ink-600">Charter</span>
+          <span>Charter</span>
         </span>
       </div>
-      <div class="text-ink-400 mt-1">Size = enrollment</div>
+      <div style="color:var(--ink-400);margin-top:4px">Size = enrollment</div>
     </div>
   `;
 }
 
-function TopBar({ state, store }) {
+function TopBar({ state, store, ui, setUi, menu, setMenu }) {
+  const set = (patch) => setUi({ ...ui, ...patch });
+  const opts = (key, list) => html`
+    <div class="opts">
+      ${list.map(([v, label]) => html`<button class="seg ${ui[key] === v ? "on" : ""}" onClick=${() => set({ [key]: v })}>${label}</button>`)}
+    </div>`;
   return html`
-    <header class="flex items-center gap-3 px-5 py-2.5 bg-white border-b border-ink-100 flex-shrink-0">
-      <div class="flex items-baseline gap-2">
-        <div class="w-6 h-6 rounded bg-kipp-600 text-white text-[11px] font-bold flex items-center justify-center">K</div>
-        <div class="text-[15px] font-semibold text-ink-900">KIPP Demographics</div>
-        <div class="text-[12px] text-ink-500">Broward · Miami-Dade · Orange Demographics</div>
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">K</div>
+        <div class="bar"></div>
+        <div>
+          <div class="eyebrow">KIPP Miami · Growth & Facilities</div>
+          <div class="title">Demographic Analysis</div>
+        </div>
       </div>
-      <div class="ml-auto text-[11px] text-ink-500">ACS 5-Yr 2023 · FL DOE 2025-26</div>
+      <div class="segset">
+        ${REGIONS.map(r => html`
+          <button class="seg ${state.county === r.id ? "on" : ""}"
+            onClick=${() => store.set({ county: r.id, focusDistrict: null })}>${r.label}</button>`)}
+      </div>
+      <button class="ghost" onClick=${() => mapReady.then(m => m.flyTo({ center: [-81.7, 27.9], zoom: 6.3, duration: 800 }))}>Statewide</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+        <div class="topmeta">ACS 5-Yr 2023 · FL DOE 2025–26</div>
+        <button class="ghost ${menu ? "hot" : ""}" onClick=${(e) => { e.stopPropagation(); setMenu(!menu); }}>Display</button>
+      </div>
+      ${menu ? html`
+        <div class="menu" onClick=${e => e.stopPropagation()}>
+          <div class="row"><span>Basemap</span>${opts("ui", [["dark", "Dark"], ["light", "Light"]])}</div>
+          <div class="row"><span>Panel layout</span>${opts("layout", [["dock", "Docked"], ["float", "Floating"]])}</div>
+          <div class="row"><span>Density</span>${opts("density", [["comfortable", "Comfortable"], ["compact", "Compact"]])}</div>
+          <div class="row"><span>Markers</span>${opts("markers", [["solid", "Solid"], ["hollow", "Hollow"]])}</div>
+          <div class="row"><span>Accent</span>
+            <div class="swatchrow">
+              ${ACCENTS.map(a => html`<div class="swatch ${ui.theme === a.id ? "on" : ""}" title=${a.label}
+                style="background:${a.color}" onClick=${() => set({ theme: a.id })}></div>`)}
+            </div>
+          </div>
+        </div>` : null}
     </header>
   `;
 }

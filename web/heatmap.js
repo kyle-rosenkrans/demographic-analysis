@@ -5,6 +5,7 @@ import { h } from "https://esm.sh/preact@10.22.0";
 import { useEffect } from "https://esm.sh/preact@10.22.0/hooks";
 import htm from "https://esm.sh/htm@3.1.1";
 import { getMapIdle } from "./app.js";
+import { perfKey } from "./state.js";
 import { fmt, quantileBreaks, stepExpr, RAMP_ORANGE, RAMP_BLUE, RAMP_GREEN, RAMP_PURPLE, RAMP_RED } from "./utils.js";
 import { DEFAULT_WEIGHTS, score, val, WEIGHT_LABELS } from "./suitability.js";
 
@@ -175,32 +176,40 @@ export function LayersPanel({ state, store }) {
   const weights = state.weights || { ...DEFAULT_WEIGHTS };
   const total = Object.values(weights).reduce((a,b) => a+(b||0), 0);
 
+  const live = (data.universalSchools?.features || []).filter(f =>
+    f.properties.status !== "closed" && f.properties.role !== "incubation");
+  const counts = {
+    district: live.filter(f => f.properties.role === "district").length,
+    charter: live.filter(f => f.properties.role === "charter").length,
+    stepup: data.stepupSchools?.features.length || 0,
+    plp: Object.keys(data.plpSchools || {}).length,
+    perf: data.schoolPerformance ? live.filter(f => data.schoolPerformance[perfKey(f.properties)]).length : 0,
+  };
+
   return html`
-    <details class="border-b border-ink-100" open>
-      <summary class="px-4 py-2.5 text-xs font-semibold text-ink-700 bg-ink-50 cursor-pointer flex items-center justify-between select-none">
-        <span>Map Layers</span>
-        <span class="text-ink-400 font-normal">▸</span>
-      </summary>
-      <div class="p-3 space-y-2.5">
+    <!-- ============ General ============ -->
+    <details open>
+      <summary class="sec-head"><span>General</span><span class="chev">›</span></summary>
+      <div style="padding:var(--pad)" class="space-y-2.5">
 
         <!-- Heat Map -->
         <div class="space-y-1.5">
           <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked=${state.showHeatMap}
                    onChange=${e => store.set({ showHeatMap: e.target.checked })} />
-            <span class="text-xs font-medium text-ink-700">Demographic Heat Map</span>
+            <span class="lyr">Demographic Heat Map<i>block-group choropleth · ACS 5-yr 2023</i></span>
           </label>
           ${state.showHeatMap ? html`
-            <div class="flex flex-wrap gap-1 pl-5">
+            <div class="flex flex-wrap gap-1" style="padding-left:20px">
               ${METRICS.map(m => html`
                 <button
                   onClick=${() => store.set({ heatLayer: m.id })}
-                  class="px-2 py-0.5 text-[11px] rounded ${state.heatLayer === m.id ? "bg-kipp-600 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"}"
+                  class="chip ${state.heatLayer === m.id ? "on" : ""}"
                 >${m.label}</button>
               `)}
             </div>
             ${state.heatLayer === "suitability" ? html`
-              <div class="pl-5 text-[11px] text-ink-500">Suitability: weighted composite (100-pt scale). Edit weights below.</div>
+              <div class="text-[11px] text-ink-500" style="padding-left:20px">Suitability: weighted composite (100-pt scale). Edit weights below.</div>
             ` : null}
           ` : null}
         </div>
@@ -214,42 +223,67 @@ export function LayersPanel({ state, store }) {
               <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#16a34a" stroke="#fff"></circle></svg>
               <svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#dc2626" stroke="#fff"></polygon></svg>
             </span>
-            <span class="text-xs font-medium text-ink-700">School Performance</span>
+            <span class="lyr">School Performance<i>color = % Level 3+ · shape = sector</i></span>
+            <span class="cnt">${counts.perf}</span>
           </label>
           ${state.showPerformance ? html`
-            <div class="pl-5 text-[10px] text-ink-500 leading-snug">
-              Color = % scoring Level 3+ (ELA+Math), <span style="color:#b91c1c;font-weight:600">red</span> → <span style="color:#16a34a;font-weight:600">green</span>.
+            <div class="text-[10px] text-ink-500 leading-snug" style="padding-left:20px">
+              Color = % scoring Level 3+ (ELA+Math), <span style="color:var(--neg);font-weight:600">red</span> → <span style="color:var(--pos);font-weight:600">green</span>.
               Size = enrollment. <b>○</b> district · <b>▲</b> charter. Click a school for full detail.
             </div>
           ` : null}
         </div>
 
-        <!-- Per-county District boundaries -->
+      </div>
+    </details>
+
+    <!-- ============ Government Boundaries ============ -->
+    <details open>
+      <summary class="sec-head"><span>Government Boundaries</span><span class="chev">›</span></summary>
+      <div style="padding:var(--pad)" class="space-y-2.5">
+
         <div class="space-y-1">
-          <div class="text-xs font-medium text-ink-700">School Board Districts</div>
-          <label class="flex items-center gap-2 cursor-pointer pl-2">
+          <div class="grp">Broward</div>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
             <input type="checkbox" checked=${state.showBrowardSBD}
                    onChange=${e => store.set({ showBrowardSBD: e.target.checked })} />
-            <span class="text-xs text-ink-700">Broward County (D1–D7)</span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer pl-2">
-            <input type="checkbox" checked=${state.showMiamiDadeSBD}
-                   onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
-            <span class="text-xs text-ink-700">Miami-Dade County (D1–D9)</span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer pl-2">
-            <input type="checkbox" checked=${state.showOrangeSBD}
-                   onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
-            <span class="text-xs text-ink-700">Orange County · Orlando (D1–D7)</span>
+            <span class="lyr">School Board Districts<i>D1–D7</i></span>
           </label>
         </div>
+
+        <div class="space-y-1">
+          <div class="grp">Miami-Dade</div>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showMiamiDadeSBD}
+                   onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
+            <span class="lyr">School Board Districts<i>D1–D9</i></span>
+          </label>
+        </div>
+
+        <div class="space-y-1">
+          <div class="grp">Orange</div>
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+            <input type="checkbox" checked=${state.showOrangeSBD}
+                   onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
+            <span class="lyr">School Board Districts<i>D1–D7</i></span>
+          </label>
+        </div>
+
+      </div>
+    </details>
+
+    <!-- ============ School Points ============ -->
+    <details open>
+      <summary class="sec-head"><span>School Points</span><span class="chev">›</span></summary>
+      <div style="padding:var(--pad)" class="space-y-2.5">
 
         <!-- District/public schools — BLUE circle -->
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked=${state.showPublicSchools}
                  onChange=${e => store.set({ showPublicSchools: e.target.checked })} />
           <span style="width:11px;height:11px;border-radius:50%;background:#2563eb;border:1px solid #fff;box-shadow:0 0 0 1px #2563eb;display:inline-block;flex-shrink:0"></span>
-          <span class="text-xs text-ink-700">District Schools (Size = Enrollment)</span>
+          <span class="lyr">District Schools<i>size = enrollment</i></span>
+          <span class="cnt">${counts.district}</span>
         </label>
 
         <!-- Charter schools — AMBER circle with dark ring -->
@@ -257,7 +291,8 @@ export function LayersPanel({ state, store }) {
           <input type="checkbox" checked=${state.showCharters}
                  onChange=${e => store.set({ showCharters: e.target.checked })} />
           <span style="width:11px;height:11px;border-radius:50%;background:#f59e0b;border:2px solid #78350f;display:inline-block;flex-shrink:0"></span>
-          <span class="text-xs text-ink-700">Charter schools (size = enrollment)</span>
+          <span class="lyr">Charter Schools<i>size = enrollment</i></span>
+          <span class="cnt">${counts.charter}</span>
         </label>
 
         <!-- Step Up private — PURPLE rounded-square -->
@@ -265,8 +300,17 @@ export function LayersPanel({ state, store }) {
           <input type="checkbox" checked=${state.showStepUp}
                  onChange=${e => store.set({ showStepUp: e.target.checked })} />
           <span style="width:11px;height:11px;border-radius:18%;background:#9333ea;border:1.5px solid #581c87;display:inline-block;flex-shrink:0"></span>
-          <span class="text-xs text-ink-700">Step Up private schools (size = K-8 enrollment)</span>
+          <span class="lyr">Private Schools<i>size = K-8 enrollment</i></span>
+          <span class="cnt">${counts.stepup}</span>
         </label>
+
+      </div>
+    </details>
+
+    <!-- ============ Florida-Specific ============ -->
+    <details open>
+      <summary class="sec-head"><span>Florida-Specific</span><span class="chev">›</span></summary>
+      <div style="padding:var(--pad)" class="space-y-2.5">
 
         <!-- School of Hope eligible facilities (FL DOE FISH capacity) -->
         <div class="space-y-1">
@@ -278,15 +322,15 @@ export function LayersPanel({ state, store }) {
               <span style="width:9px;height:9px;border-radius:50%;background:#eab308;border:1px solid #fff"></span>
               <span style="width:9px;height:9px;border-radius:50%;background:#dc2626;border:1px solid #fff"></span>
             </span>
-            <span class="text-xs text-ink-700">School of Hope eligible facilities</span>
+            <span class="lyr">School of Hope Eligible Facilities<i>utilization ≤ 75% or 400+ surplus seats</i></span>
           </label>
           ${state.showUnderutilized ? html`
-            <div class="pl-5 text-[10px] text-ink-500 leading-snug space-y-0.5">
+            <div class="text-[10px] text-ink-500 leading-snug space-y-0.5" style="padding-left:20px">
               <div>Eligible if utilization <b>≤ 75%</b> <i>or</i> surplus <b>≥ 400</b> seats (FL statute).</div>
               <div>Size = surplus seats · Color by utilization:
-                <span style="color:#16a34a;font-weight:600">green</span> 0–49% ·
-                <span style="color:#b08500;font-weight:600">yellow</span> 50–75% ·
-                <span style="color:#dc2626;font-weight:600">red</span> 76–100%
+                <span style="color:var(--pos);font-weight:600">green</span> 0–49% ·
+                <span style="color:var(--warn);font-weight:600">yellow</span> 50–75% ·
+                <span style="color:var(--neg);font-weight:600">red</span> 76–100%
               </div>
               <div class="text-ink-400">Source: FL DOE FISH Level of Service 2025-26.</div>
             </div>
@@ -299,45 +343,47 @@ export function LayersPanel({ state, store }) {
             <input type="checkbox" checked=${state.showPlp}
                    onChange=${e => store.set({ showPlp: e.target.checked })} />
             <span style="width:11px;height:11px;border-radius:50%;background:#fee2e2;border:2.5px solid #b91c1c;display:inline-block;flex-shrink:0"></span>
-            <span class="text-xs text-ink-700">Persistently Low-Performing (PLP 24-25)</span>
+            <span class="lyr">Persistently Low-Performing Schools<i>FL DOE 2024-25 list</i></span>
+            <span class="cnt">${counts.plp}</span>
           </label>
           ${state.showPlp ? html`
-            <div class="pl-5 text-[10px] text-ink-500 leading-snug">
-              FL DOE 2024-25 list · 44 schools across Broward, Miami-Dade + Orange.
+            <div class="text-[10px] text-ink-500 leading-snug" style="padding-left:20px">
+              FL DOE 2024-25 list · ${counts.plp} schools across Broward, Miami-Dade + Orange.
               Click any PLP school for campus analysis; a 5-mile radius will draw around it.
             </div>
           ` : null}
-          <label class="flex items-center gap-2 cursor-pointer pl-5">
+          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:20px">
             <input type="checkbox" checked=${state.showPlpRadius}
                    onChange=${e => store.set({ showPlpRadius: e.target.checked })} />
-            <span class="text-[11px] text-ink-600">5-mile radius around focused PLP school</span>
+            <span class="text-[11px] text-ink-600">5-mile radius around focused school</span>
           </label>
         </div>
 
-        <!-- Suitability weights -->
-        <details class="border border-ink-100 rounded-md overflow-hidden">
-          <summary class="px-3 py-2 text-[11px] font-medium text-ink-700 bg-ink-50 cursor-pointer">
-            Suitability weights · total = ${total.toFixed(0)}
-          </summary>
-          <div class="p-3 space-y-1">
-            ${Object.keys(DEFAULT_WEIGHTS).map(k => html`
-              <div class="flex items-center gap-2">
-                <label class="text-[11px] text-ink-700 flex-1">${WEIGHT_LABELS[k]}</label>
-                <input type="number" min="0" max="50" step="1"
-                  value=${weights[k] ?? 0}
-                  onInput=${e => {
-                    const v = parseFloat(e.target.value) || 0;
-                    store.set({ weights: { ...weights, [k]: v } });
-                  }}
-                  class="w-12 px-1.5 py-0.5 text-xs text-right border border-ink-300 rounded"
-                />
-              </div>
-            `)}
-            <button class="mt-1 text-[11px] text-kipp-600 hover:underline"
-                    onClick=${() => store.set({ weights: null })}>Reset to defaults</button>
-          </div>
-        </details>
+      </div>
+    </details>
 
+    <!-- ============ Suitability weights (unlisted in the new hierarchy — kept as its own section) ============ -->
+    <details>
+      <summary class="sec-head">
+        <span>Suitability weights · total = ${total.toFixed(0)}</span>
+        <span class="chev">›</span>
+      </summary>
+      <div style="padding:var(--pad)" class="space-y-1">
+        ${Object.keys(DEFAULT_WEIGHTS).map(k => html`
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] text-ink-700 flex-1">${WEIGHT_LABELS[k]}</label>
+            <input type="number" min="0" max="50" step="1"
+              value=${weights[k] ?? 0}
+              onInput=${e => {
+                const v = parseFloat(e.target.value) || 0;
+                store.set({ weights: { ...weights, [k]: v } });
+              }}
+              class="num-fld"
+            />
+          </div>
+        `)}
+        <button class="mt-1 text-[11px] text-kipp-600 hover:underline"
+                onClick=${() => store.set({ weights: null })}>Reset to defaults</button>
       </div>
     </details>
   `;

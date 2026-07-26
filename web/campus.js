@@ -629,15 +629,17 @@ export function SchoolPanel({ state, store }) {
   }
 
   return html`
-    <div class="border-b border-ink-100">
+    <div>
       <${UniversalSchoolPicker} data=${data} state=${state} store=${store} />
-      <div class="px-4 pb-3 flex items-center gap-2 flex-wrap">
-        <span class="text-xs text-ink-500">Drive-time ring:</span>
-        ${["5min","10min","15min"].map(r => html`
-          <button onClick=${() => store.set({ ring: r })}
-            class="px-2.5 py-1 text-xs rounded-md ${state.ring===r ? "bg-kipp-600 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-300"}"
-          >${r.replace("min"," min")}</button>
-        `)}
+      <div class="pb-3 flex items-center gap-2 flex-wrap" style="padding-left:var(--pad);padding-right:var(--pad)">
+        <span class="grp">Drive-time ring</span>
+        <div class="segrow">
+          ${["5min","10min","15min"].map(r => html`
+            <button onClick=${() => store.set({ ring: r })}
+              class="seg ${state.ring===r ? "on" : ""}"
+            >${r.replace("min"," min")}</button>
+          `)}
+        </div>
       </div>
     </div>
   `;
@@ -656,27 +658,27 @@ function UniversalSchoolPicker({ data, state, store }) {
     .slice(0, 12);
 
   return html`
-    <div class="px-4 pt-3 pb-2">
-      <div class="text-[11px] text-ink-500 mb-1.5">
-        Search ${activeCount.toLocaleString()} public + charter schools — Broward · Miami-Dade · Orange
+    <div class="searchwrap">
+      <div class="lbl">
+        Search <span style="color:var(--ink-700);font-weight:600">${activeCount.toLocaleString()}</span> schools — Broward, Miami-Dade, Orange
       </div>
       <input
         type="search"
         placeholder="School name or city…"
         value=${state.schoolSearch || ""}
         onInput=${e => store.set({ schoolSearch: e.target.value })}
-        class="w-full px-2.5 py-1.5 text-sm border border-ink-200 rounded focus:outline-none focus:ring-2 focus:ring-kipp-500"
+        class="fld"
       />
       ${matches.length ? html`
-        <div class="mt-1 border border-ink-100 rounded-md max-h-[220px] overflow-y-auto scrollbar-thin bg-white shadow-sm">
+        <div class="results">
           ${matches.map(s => {
             const p = s.properties;
             const isClosed = p.status === "closed";
             const isPlp = data.plpSchools && data.plpSchools[p.id];
-            const dot = isClosed ? "#d1d5db" : p.role === "charter" ? "#1d4ed8" : p.role === "incubation" ? "#ea580c" : "#64748b";
+            const dot = isClosed ? "#94a3b8" : p.role === "charter" ? "#f59e0b" : p.role === "incubation" ? "#F9A21A" : "#57C0E9";
             return html`
               <div onClick=${() => store.set({ focusCampus: p.id, schoolSearch: "" })}
-                   class="px-3 py-1.5 cursor-pointer hover:bg-kipp-50 border-b border-ink-100 last:border-0 text-xs flex items-center gap-2 ${isClosed ? "opacity-50" : ""}">
+                   class="${isClosed ? "opacity-50" : ""}">
                 <span style="width:7px;height:7px;border-radius:50%;background:${dot};flex-shrink:0;display:inline-block"></span>
                 <span class="flex-1 truncate">${p.name}</span>
                 ${isPlp ? html`<span class="pill bg-red-50 text-red-700 border border-red-200 flex-shrink-0 text-[10px]">PLP</span>` : null}
@@ -725,7 +727,7 @@ function SchoolDetail({ schoolId, data, store, state }) {
   const ring = state.ring || "5min";
 
   return html`
-    <div class="p-4 space-y-3 border-b border-ink-100">
+    <div class="space-y-3" style="padding:var(--pad)">
       <button onClick=${() => store.set({ focusCampus: null })}
               class="text-xs text-kipp-600 hover:underline">← Back to search</button>
       <div>
@@ -774,12 +776,14 @@ function SchoolDetail({ schoolId, data, store, state }) {
       ` : null}
 
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-xs text-ink-500">Ring:</span>
-        ${["5min","10min","15min"].map(r => html`
-          <button onClick=${() => store.set({ ring: r })}
-            class="px-2 py-0.5 text-xs rounded ${ring===r ? "bg-kipp-600 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-300"}"
-          >${r.replace("min"," min")}</button>
-        `)}
+        <span class="grp">Ring</span>
+        <div class="segrow">
+          ${["5min","10min","15min"].map(r => html`
+            <button onClick=${() => store.set({ ring: r })}
+              class="seg ${ring===r ? "on" : ""}"
+            >${r.replace("min"," min")}</button>
+          `)}
+        </div>
       </div>
 
       ${perf ? html`<${PerformanceBlock} perf=${perf} />` : null}
@@ -880,7 +884,7 @@ function PerformanceBlock({ perf }) {
   return html`
     <div class="bg-ink-50 rounded-md p-2.5 space-y-2.5">
       <div class="flex items-baseline justify-between">
-        <div class="text-[11px] font-semibold text-ink-700">Performance &amp; Demographics</div>
+        <div class="text-[11px] font-semibold text-ink-700">Performance & Demographics</div>
         <span class="text-[10px] text-ink-500">FL DOE 2024-25</span>
       </div>
 
@@ -953,7 +957,7 @@ function PerformanceBlock({ perf }) {
       ` : null}
 
       <div class="text-[10px] text-ink-400 leading-snug pt-1 border-t border-ink-100">
-        Proficiency &amp; grades: FL DOE School Grades 2024-25. Race/ELL: FL DOE Membership 2025-26 Survey 2.
+        Proficiency & grades: FL DOE School Grades 2024-25. Race/ELL: FL DOE Membership 2025-26 Survey 2.
         ESE not available per-school from FL DOE downloads.
       </div>
     </div>

@@ -193,21 +193,20 @@ export function DistrictPanel({ state, store }) {
   const sortedDist = ranked.scored.slice().sort((a,b) => b.score - a.score);
 
   return html`
-    <details class="border-b border-ink-100">
-      <summary class="px-4 py-2.5 text-xs font-semibold text-ink-700 bg-ink-50 cursor-pointer flex items-center justify-between select-none">
-        <span>District Analysis · Charter Ops · Step Up</span>
-        <span class="text-ink-400 font-normal">▸</span>
-      </summary>
+    <details>
+      <summary class="sec-head"><span>District Analysis · Charter Ops · Step Up</span><span class="chev">›</span></summary>
 
       <!-- County tab selector for sidebar content (map shows whatever layers are toggled) -->
-      <div class="px-4 py-2 border-b border-ink-100 flex items-center gap-1">
-        <span class="text-[11px] text-ink-500 mr-1">Show data for:</span>
-        ${[{id:"broward",label:"Broward"},{id:"miamidade",label:"Miami-Dade"},{id:"orange",label:"Orange / Orlando"}].map(c => html`
-          <button
-            onClick=${() => store.set({ county: c.id, focusDistrict: null })}
-            class="px-2 py-0.5 text-[11px] rounded ${state.county === c.id ? "bg-kipp-600 text-white" : "text-ink-700 hover:bg-ink-100"}"
-          >${c.label}</button>
-        `)}
+      <div style="padding:9px var(--pad);border-bottom:1px solid var(--hair)" class="flex items-center gap-2">
+        <span class="grp" style="margin:0">Show data for</span>
+        <div class="segrow">
+          ${[{id:"broward",label:"Broward"},{id:"miamidade",label:"Miami-Dade"},{id:"orange",label:"Orange"}].map(c => html`
+            <button
+              onClick=${() => store.set({ county: c.id, focusDistrict: null })}
+              class="seg ${state.county === c.id ? "on" : ""}"
+            >${c.label}</button>
+          `)}
+        </div>
       </div>
 
       ${focusDistrict ? html`
