@@ -1,7 +1,23 @@
-# KIPP Miami – Broward Demographics Tool
+# KIPP Demographics Tool — Florida & New Jersey
 
-A locally-hosted, interactive clone of the InSite EFS demographic study deck
-(Miami-Dade + Broward, FL), built from **100% free public data**.
+A locally-hosted, interactive siting/demographics explorer built from **100%
+free public data**. One app, two regions, switched with the **FL / NJ** toggle
+in the top bar:
+
+| | Florida | New Jersey |
+|---|---|---|
+| Areas | Broward · Miami-Dade · Orange | Newark · Camden · Paterson |
+| Sub-city unit | School Board Districts (D1–D9) | **Wards** (Newark 5 named, Camden 4, Paterson 6) |
+| Performance | FL DOE School Grades 2025-26, % Level 3+, A–F grade | **NJSLA 2024-25**, % meeting/exceeding, grades 3-8 (no A–F — NJ issues none) |
+| Enrollment | FL DOE Membership Survey 2 | NJ DOE Fall Enrollment |
+| State-specific | School of Hope eligibility · Persistently Low-Performing | *(none — omitted)* |
+| Private schools | Step Up (FES/FTC) | *not yet available* |
+
+Shared across both: demographic heat map, drive-time rings, suitability model,
+school points, sub-area comparison tables. The NJ ETL emits the same property
+names as the Florida data, so the school/performance/heat-map layers are shared
+code with only the source data swapped — see `web/region.js`, which is the one
+place the two regions' differences are declared.
 
 ## What it does
 
@@ -55,7 +71,16 @@ python3 etl/13_projections_2030.py         # DIY 2025→2030 projections
 python3 etl/06_aggregate.py                # Re-roll to include projection fields
 python3 etl/23_fetch_municipal_boundaries.py            # City/town limits (TIGER incorporated places)
 python3 etl/24_parse_school_grades.py data/raw/SchoolGrades26.xlsx   # School grades + proficiency
+
+# --- New Jersey (Newark · Camden · Paterson) ---
+python3 etl/30_nj_geography.py            # NJOGIS wards + TIGER places/block groups
+python3 etl/31_nj_acs.py                  # ACS block groups -> ward + city rollups
+python3 etl/32_nj_schools_performance.py   # NJSLA 2024-25 + school points
+python3 etl/33_nj_enrollment.py            # NJ DOE Fall Enrollment (5 yrs) + demographics
+python3 etl/34_nj_rings.py                 # 5/10/15-min ring demographics
 ```
+
+Run the NJ scripts in order — 32 depends on 30/31, and 33/34 enrich 32's output.
 
 A one-shot `make all` target is a reasonable future enhancement.
 
@@ -96,6 +121,10 @@ current. No UI edit is needed for a normal year-over-year refresh.
 | Persistently Low-Performing list | FL DOE | 2024-25 |
 | Private school directory (Step Up) | FL DOE Private School List | current |
 | 2025-2030 projections | DIY: ACS total-pop trend + FL DOE cohort CAGR | — |
+| **NJ** ward boundaries | NJOGIS `Ward_Boundaries_for_New_Jersey` | current |
+| **NJ** school performance | NJSLA (via the sibling NJSLA Explorer project) | 2024-25 (Spring 2025) |
+| **NJ** enrollment + school demographics | NJ DOE Fall Enrollment | 2021-22 through 2025-26 |
+| **NJ** block-group demographics | Census ACS 5-Year table-based Summary File (keyless) | 2023 |
 
 ## What matches InSite (the vendor deck) exactly
 
@@ -113,6 +142,37 @@ These numbers reproduce InSite's published figures within 1-2 students or 1%:
 - **Private school Step Up totals** (slide 21) — 221 Broward schools with
   29,804 K-8 students (InSite: 245 / 29,801). 10% of schools lost during
   geocode or fell outside SBD polygons.
+
+## New Jersey notes
+
+- **Census API key no longer optional.** As of 2025 the Census data API rejects
+  every keyless request, so `etl/31_nj_acs.py` does *not* use it. It streams the
+  keyless **table-based Summary File** instead (9 tables, ~510 MB, filtered to
+  our ~1.4k block groups as it downloads, then cached in `data/raw/`). Same ACS
+  variables and derivation math as the Florida ETL, so the two are comparable.
+- **Charter reporting is network-level.** NJ DOE publishes one record per
+  charter *district*, so multi-campus networks (TEAM 3,351 tested / 6,600
+  enrolled; North Star 3,302 / 6,812; KIPP: Cooper Norcross; Mastery Camden)
+  appear as a single point carrying network-wide figures at the network's listed
+  address. There is no field distinguishing those from genuinely single-campus
+  charters, so no school is individually tagged — the UI states the practice and
+  `tested_3_8` is exposed as the tell. Per-campus results would require scraping
+  per-school NJ School Performance Reports.
+- **Demographic basis.** Race / Free+Reduced Lunch / Multilingual come from the
+  whole-school NJ DOE Fall Enrollment file (matching Florida's membership-survey
+  basis). Students-with-disabilities is the share of grades 3-8 *test-takers*,
+  since the enrollment file omits it — but NJ publishes it at all, where Florida
+  shows "n/a". NJ's low-income measure is Free + Reduced Lunch, close to but not
+  identical with Florida's "economically disadvantaged".
+- **Wards, not school-board districts.** NJ districts here are citywide, so the
+  ward is the meaningful sub-city unit. Ward polygons come from NJOGIS
+  `Ward_Boundaries_for_New_Jersey`; note `MUN_NAME` is `"Newark City"` and that
+  `"East Newark Borough"` is a *different* municipality in Hudson County, so the
+  ETL matches exact names rather than a `LIKE '%NEWARK%'`.
+- 140 NJ schools are mapped; 103 have NJSLA grades 3-8 results (high schools and
+  K-2 schools aren't NJSLA-tested at those grades). 53 unidentifiable geocode
+  rows — no name in any source, no enrollment, no results — are dropped rather
+  than rendered as anonymous dots.
 
 ## Known approximations & limitations
 

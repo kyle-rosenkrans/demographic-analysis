@@ -5,12 +5,25 @@ import { h } from "https://esm.sh/preact@10.22.0";
 import { useEffect } from "https://esm.sh/preact@10.22.0/hooks";
 import htm from "https://esm.sh/htm@3.1.1";
 import { getMapIdle } from "./app.js";
-import { perfKey } from "./state.js";
 import { fmt, profColor, profColorExpr, gradeColor, schoolYearLabel, perfYear } from "./utils.js";
+import { regionCfg, regionData, perfKeyFor, enrollKeyFor } from "./region.js";
 
 const html = htm.bind(h);
 
 const RING_MILES = { "5min": 1.83, "10min": 3.67, "15min": 5.50 };
+
+// Florida stores county as a slug ("broward"); the NJ data already carries the
+// proper county name ("Essex"), so anything unrecognized passes through.
+const COUNTY_LABELS = { broward: "Broward", miamidade: "Miami-Dade", orange: "Orange" };
+function countyLabel(county) {
+  if (!county) return "";
+  return COUNTY_LABELS[county] || county;
+}
+const COUNTY_ABBR = { broward: "BRW", miamidade: "MDC", orange: "ORG" };
+function countyAbbr(county) {
+  if (!county) return "";
+  return COUNTY_ABBR[county] || String(county).slice(0, 3).toUpperCase();
+}
 
 // KIPP Miami North anchor — always on map
 const KIPP_NORTH = {
@@ -44,19 +57,24 @@ function makeMarkerEl(color, size = 18, border = 2.5) {
 // ---------- All-schools bubble layers (persistent) ----------
 // One GeoJSON source + two circle layers (charter + district public) sized by enrollment.
 // Click to focus a campus; hover for name+enrollment. Visibility managed by syncLayerVisibility.
-async function ensureSchoolDotLayers(map, data) {
-  if (!data?.universalSchools) return;
-  if (map.getSource("all-schools-src")) return; // already initialized
+// The source data is swapped when the region changes (FL and NJ school
+// properties share names by design), so the layers, paint and popups are built
+// once and reused for both.
+async function ensureSchoolDotLayers(map, data, region) {
+  const rd = regionData(data, region);
+  if (!rd?.schools) return;
 
-  const feats = data.universalSchools.features.filter(f => {
+  const feats = rd.schools.features.filter(f => {
     const p = f.properties;
     return p.status !== "closed" && p.role !== "incubation";
   });
+  const fc = { type: "FeatureCollection", features: feats };
 
-  map.addSource("all-schools-src", {
-    type: "geojson",
-    data: { type: "FeatureCollection", features: feats },
-  });
+  if (map.getSource("all-schools-src")) {
+    map.getSource("all-schools-src").setData(fc);
+    return;
+  }
+  map.addSource("all-schools-src", { type: "geojson", data: fc });
 
   // Radius interpolated from enrollment (0 → small, 3000 → large)
   const radiusExpr = ["interpolate", ["linear"],
@@ -112,7 +130,7 @@ async function ensureSchoolDotLayers(map, data) {
       const enrollNum = parseFloat(p.enrollment_2526);
       const enrollStr = !isNaN(enrollNum) && enrollNum > 0
         ? `${Math.round(enrollNum).toLocaleString()} students (2025-26)` : "";
-      const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+      const countyStr = countyLabel(p.county);
       const typeStr = p.role === "charter" ? "Charter" : "Public";
       popup.setLngLat(e.lngLat)
         .setHTML(`<div style="font-size:12px;line-height:1.4">
@@ -346,7 +364,7 @@ async function ensurePlpLayer(map, data) {
     const enrollNum = parseFloat(p.enrollment_2526);
     const enrollStr = !isNaN(enrollNum) && enrollNum > 0
       ? `${Math.round(enrollNum).toLocaleString()} students (2025-26)` : "";
-    const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+    const countyStr = countyLabel(p.county);
     popup.setLngLat(e.lngLat)
       .setHTML(`<div style="font-size:12px;line-height:1.4;min-width:220px">
         <strong>${p.name}</strong><br>
@@ -432,18 +450,18 @@ function ensurePerfIcons(map) {
   }
 }
 
-async function ensurePerformanceLayer(map, data) {
-  if (!data?.universalSchools || !data?.schoolPerformance) return;
-  if (map.getSource("perf-src")) return; // idempotent
+async function ensurePerformanceLayer(map, data, region) {
+  const rd = regionData(data, region);
+  if (!rd?.schools || !rd?.performance) return;
 
   ensurePerfIcons(map);
 
-  const perf = data.schoolPerformance;
+  const perf = rd.performance;
   const feats = [];
-  for (const f of data.universalSchools.features) {
+  for (const f of rd.schools.features) {
     const p = f.properties;
     if (p.status === "closed" || p.role === "incubation") continue;
-    const rec = perf[perfKey(p)];
+    const rec = perf[perfKeyFor(region, p)];
     if (!rec) continue;                       // only schools we have performance for
     const enroll = (p.enrollment_2526 && +p.enrollment_2526 > 0)
       ? +p.enrollment_2526 : (rec.enrollment || 0);
@@ -458,9 +476,14 @@ async function ensurePerformanceLayer(map, data) {
       },
     });
   }
-  console.log(`[PERF] ${feats.length} schools with performance data`);
+  const fc = { type: "FeatureCollection", features: feats };
+  console.log(`[PERF:${region}] ${feats.length} schools with performance data`);
 
-  map.addSource("perf-src", { type: "geojson", data: { type: "FeatureCollection", features: feats } });
+  if (map.getSource("perf-src")) {
+    map.getSource("perf-src").setData(fc);
+    return;
+  }
+  map.addSource("perf-src", { type: "geojson", data: fc });
 
   const sizeExpr = ["interpolate", ["linear"], ["to-number", ["coalesce", ["get", "enrollment"], 0]],
     0, 0.17, 200, 0.26, 500, 0.36, 1000, 0.50, 2000, 0.66, 3500, 0.86];
@@ -493,7 +516,7 @@ async function ensurePerformanceLayer(map, data) {
     const pf = (v) => (v == null || v === "" || isNaN(+v)) ? "—" : `${Math.round(+v)}%`;
     const enrollNum = parseFloat(p.enrollment);
     const enrollStr = !isNaN(enrollNum) && enrollNum > 0 ? `${Math.round(enrollNum).toLocaleString()} students` : "";
-    const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+    const countyStr = countyLabel(p.county);
     const typeStr = p.role === "charter" ? "Charter" : "District";
     const gradeBadge = p.grade
       ? `<span style="display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:3px;color:#fff;font-weight:700;font-size:10px;background:${gradeColor(p.grade)}">${p.grade}</span>`
@@ -523,27 +546,34 @@ async function ensurePerformanceLayer(map, data) {
 async function renderSchoolLayers(state) {
   const map = await getMapIdle();
   const { data, ring, focusCampus } = state;
+  const region = state.region || "fl";
   if (!data) return;
+  const rd = regionData(data, region);
 
-  // Ensure persistent all-schools bubble layers exist (idempotent)
-  await ensureSchoolDotLayers(map, data);
-  await ensureUnderutilizedLayer(map, data);
-  await ensurePlpLayer(map, data);
-  await ensurePerformanceLayer(map, data);
+  // School + performance sources swap data by region; the Florida-only layers
+  // are built once and simply hidden when NJ is active.
+  await ensureSchoolDotLayers(map, data, region);
+  await ensurePerformanceLayer(map, data, region);
+  if (region === "fl") {
+    await ensureUnderutilizedLayer(map, data);
+    await ensurePlpLayer(map, data);
+  }
 
   // Clear previous school markers
   (window.__schoolMarkers || []).forEach(m => m.remove());
   window.__schoolMarkers = [];
 
-  // ── KIPP North — always-visible orange anchor marker ──
-  const kippEl = makeMarkerEl("#ea580c");
-  kippEl.title = KIPP_NORTH.name;
-  kippEl.addEventListener("click", () => window.__store?.set({ focusCampus: KIPP_NORTH.id }));
-  const kippM = new maplibregl.Marker({ element: kippEl })
-    .setLngLat(KIPP_NORTH.coords)
-    .setPopup(new maplibregl.Popup({ offset: 14 }).setText(KIPP_NORTH.name))
-    .addTo(map);
-  window.__schoolMarkers.push(kippM);
+  // ── KIPP North — always-visible orange anchor marker (Florida only) ──
+  if (region === "fl") {
+    const kippEl = makeMarkerEl("#ea580c");
+    kippEl.title = KIPP_NORTH.name;
+    kippEl.addEventListener("click", () => window.__store?.set({ focusCampus: KIPP_NORTH.id }));
+    const kippM = new maplibregl.Marker({ element: kippEl })
+      .setLngLat(KIPP_NORTH.coords)
+      .setPopup(new maplibregl.Popup({ offset: 14 }).setText(KIPP_NORTH.name))
+      .addTo(map);
+    window.__schoolMarkers.push(kippM);
+  }
 
   // ── Drive ring + focused school marker ──
   ["campus-rings-fill","campus-rings-line"].forEach(id => {
@@ -555,8 +585,8 @@ async function renderSchoolLayers(state) {
     let lng, lat, schoolName;
     if (focusCampus === KIPP_NORTH.id) {
       [lng, lat] = KIPP_NORTH.coords; schoolName = KIPP_NORTH.name;
-    } else if (data.universalSchools) {
-      const f = data.universalSchools.features.find(s => s.properties.id === focusCampus);
+    } else if (rd?.schools) {
+      const f = rd.schools.features.find(s => s.properties.id === focusCampus);
       if (f) { [lng, lat] = f.geometry.coordinates; schoolName = f.properties.name; }
     }
 
@@ -617,7 +647,7 @@ async function renderSchoolLayers(state) {
 // ---------- SchoolPanel component ----------
 export function SchoolPanel({ state, store }) {
   useEffect(() => { renderSchoolLayers(state); },
-    [state.data, state.ring, state.focusCampus, state.county,
+    [state.data, state.ring, state.focusCampus, state.county, state.region,
      state.showCharters, state.showPublicSchools, state.showUnderutilized,
      state.showPlp, state.showPlpRadius]);
 
@@ -646,8 +676,10 @@ export function SchoolPanel({ state, store }) {
 }
 
 function UniversalSchoolPicker({ data, state, store }) {
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
   // Include all schools; show closed ones grayed with a badge rather than hiding them
-  const allSchools = data.universalSchools?.features || [];
+  const allSchools = regionData(data, region)?.schools?.features || [];
   const activeCount = allSchools.filter(f => f.properties.status !== "closed").length;
   const q = (state.schoolSearch || "").trim().toLowerCase();
   const matches = !q ? [] : allSchools
@@ -660,7 +692,7 @@ function UniversalSchoolPicker({ data, state, store }) {
   return html`
     <div class="searchwrap">
       <div class="lbl">
-        Search <span style="color:var(--ink-700);font-weight:600">${activeCount.toLocaleString()}</span> schools — Broward, Miami-Dade, Orange
+        Search <span style="color:var(--ink-700);font-weight:600">${activeCount.toLocaleString()}</span> schools — ${cfg.subLabel}
       </div>
       <input
         type="search"
@@ -684,7 +716,7 @@ function UniversalSchoolPicker({ data, state, store }) {
                 ${isPlp ? html`<span class="pill bg-red-50 text-red-700 border border-red-200 flex-shrink-0 text-[10px]">PLP</span>` : null}
                 ${isClosed ? html`<span class="pill bg-red-50 text-red-600 flex-shrink-0 text-[10px]">closed</span>` : null}
                 <span class="text-ink-400 flex-shrink-0">${p.city || ""}</span>
-                <span class="pill bg-ink-100 text-ink-600 flex-shrink-0">${p.county === "broward" ? "BRW" : "MDC"}</span>
+                <span class="pill bg-ink-100 text-ink-600 flex-shrink-0">${countyAbbr(p.county)}</span>
                 ${p.enrollment_2526 && !isClosed ? html`<span class="text-ink-400 font-mono flex-shrink-0">${fmt.int(p.enrollment_2526)}</span>` : null}
               </div>
             `;
@@ -696,11 +728,14 @@ function UniversalSchoolPicker({ data, state, store }) {
 }
 
 function SchoolDetail({ schoolId, data, store, state }) {
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
+  const rd = regionData(data, region);
   const sch = schoolId === KIPP_NORTH.id
     ? { properties: { id: KIPP_NORTH.id, name: KIPP_NORTH.name, county: "miamidade",
                        school_type: "Incubation Site", address: "3000 NW 110th Street", city: "Miami" },
         geometry: { coordinates: KIPP_NORTH.coords } }
-    : (data.universalSchools?.features || []).find(f => f.properties.id === schoolId);
+    : (rd?.schools?.features || []).find(f => f.properties.id === schoolId);
 
   if (!sch) return html`
     <div class="p-4 text-xs text-ink-500">
@@ -708,14 +743,13 @@ function SchoolDetail({ schoolId, data, store, state }) {
     </div>`;
 
   const p = sch.properties;
-  const rings = data.universalRings?.[schoolId]?.rings;
-  const cap = data.schoolCapacity?.[schoolId];
-  const plp = data.plpSchools?.[schoolId];
-  const perf = data.schoolPerformance?.[perfKey(p)];
-  const enrollKey = p.enroll_key || (p.school_num
-    ? `${p.county === "miamidade" ? "13" : p.county === "orange" ? "48" : "06"}-${p.school_num}`
-    : null);
-  const enroll = enrollKey && data.enrollBySchool ? data.enrollBySchool[enrollKey] : null;
+  const rings = rd?.rings?.[schoolId]?.rings;
+  // Facility capacity / PLP are Florida-only datasets.
+  const cap = region === "fl" ? data.schoolCapacity?.[schoolId] : null;
+  const plp = region === "fl" ? data.plpSchools?.[schoolId] : null;
+  const perf = rd?.performance?.[perfKeyFor(region, p)];
+  const enrollKey = enrollKeyFor(region, p);
+  const enroll = enrollKey && rd?.enrollment ? rd.enrollment[enrollKey] : null;
   const enroll5yr = enroll ? (() => {
     const yrs = ["2122","2223","2324","2425","2526"];
     const totals = yrs.map(y => enroll.years?.[y]?.total ?? null);
@@ -732,10 +766,10 @@ function SchoolDetail({ schoolId, data, store, state }) {
               class="text-xs text-kipp-600 hover:underline">← Back to search</button>
       <div>
         <div class="text-[11px] uppercase tracking-wide text-ink-500">
-          ${p.county === "broward" ? "Broward" : "Miami-Dade"} · ${p.school_type || p.role || ""}
+          ${countyLabel(p.county)} · ${p.school_type || p.role || ""}
         </div>
         <h2 class="text-base font-semibold text-ink-900 leading-tight">${p.name}</h2>
-        <div class="text-xs text-ink-500">${[p.address, p.city].filter(Boolean).join(", ")}
+        <div class="text-xs text-ink-500">${[p.address, p.city && p.city.charAt(0).toUpperCase() + p.city.slice(1)].filter(Boolean).join(", ")}
           ${p.school_num ? html` · <span class="font-mono">#${p.school_num}</span>` : null}
         </div>
         <div class="flex flex-wrap gap-1.5 mt-1.5">
@@ -786,9 +820,9 @@ function SchoolDetail({ schoolId, data, store, state }) {
         </div>
       </div>
 
-      ${perf ? html`<${PerformanceBlock} perf=${perf} />` : null}
+      ${perf ? html`<${PerformanceBlock} perf=${perf} region=${region} />` : null}
 
-      ${enroll5yr ? html`<${EnrollmentChart} enroll=${enroll5yr} />` : null}
+      ${enroll5yr ? html`<${EnrollmentChart} enroll=${enroll5yr} region=${region} />` : null}
 
       ${cap ? (() => {
         const util = cap.utilization_pct;
@@ -855,14 +889,16 @@ function SchoolDetail({ schoolId, data, store, state }) {
       ` : html`<div class="text-xs text-ink-500 italic">No precomputed ring data for this school.</div>`}
 
       <div class="text-[11px] text-ink-500 leading-relaxed">
-        Drive-time rings: great-circle approx at 22 mph. ACS 5-Yr 2023.${enroll5yr ? " Enrollment: FL DOE Survey 2." : ""}
+        Drive-time rings: great-circle approx at 22 mph. ACS 5-Yr 2023.${enroll5yr
+          ? (region === "nj" ? " Enrollment: NJ DOE Fall Enrollment." : " Enrollment: FL DOE Survey 2.") : ""}
       </div>
     </div>
   `;
 }
 
 // Performance + demographics card shown when a school is focused.
-function PerformanceBlock({ perf }) {
+function PerformanceBlock({ perf, region }) {
+  const cfg = regionCfg(region || "fl");
   const pf = (v) => (v == null || isNaN(+v)) ? "—" : `${Math.round(+v)}%`;
   const pf1 = (v) => (v == null || isNaN(+v)) ? "—" : `${(+v).toFixed(1)}%`;
 
@@ -887,10 +923,12 @@ function PerformanceBlock({ perf }) {
     <div class="bg-ink-50 rounded-md p-2.5 space-y-2.5">
       <div class="flex items-baseline justify-between">
         <div class="text-[11px] font-semibold text-ink-700">Performance & Demographics</div>
-        <span class="text-[10px] text-ink-500">FL DOE ${schoolYearLabel(dy)}</span>
+        <span class="text-[10px] text-ink-500">${cfg.hasLetterGrades
+          ? `FL DOE ${schoolYearLabel(dy)}` : `NJSLA ${schoolYearLabel(dy)}`}</span>
       </div>
 
-      <!-- Letter grade + trend -->
+      <!-- Letter grade + trend — Florida only; NJ issues no statewide A-F grade -->
+      ${!cfg.hasLetterGrades ? null : html`
       <div class="flex items-center gap-2.5">
         <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(latestGrade)};
                     color:#fff;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -908,11 +946,13 @@ function PerformanceBlock({ perf }) {
             `)}
           </div>
         </div>
-      </div>
+      </div>`}
 
-      <!-- Proficiency by subject (% Level 3+) -->
+      <!-- Proficiency by subject -->
       <div>
-        <div class="text-[10px] text-ink-500 mb-1">Proficiency — % scoring Level 3+</div>
+        <div class="text-[10px] text-ink-500 mb-1">${cfg.hasLetterGrades
+          ? "Proficiency — % scoring Level 3+"
+          : "Proficiency — % meeting/exceeding expectations (grades 3-8)"}</div>
         <div class="space-y-1">
           ${SUBJECTS.map(([label, v]) => html`
             <div class="flex items-center gap-2">
@@ -932,10 +972,15 @@ function PerformanceBlock({ perf }) {
 
       <!-- Student demographics -->
       <div class="grid grid-cols-3 gap-2 pt-1 border-t border-ink-100">
-        <div><div class="text-[10px] text-ink-500">Econ. Disadv.</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ed_pct)}</div></div>
-        <div><div class="text-[10px] text-ink-500">ELL</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ell_pct)}</div></div>
-        <div title="Per-school ESE not published by FL DOE in a downloadable file (Know Your Schools portal only).">
-          <div class="text-[10px] text-ink-500">ESE / SpEd</div>
+        <div title=${perf.ed_basis || ""}>
+          <div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "Econ. Disadv." : "Free/Red. Lunch"}</div>
+          <div class="text-sm font-semibold text-ink-900">${pf1(perf.ed_pct)}</div>
+        </div>
+        <div><div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "ELL" : "Multilingual"}</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ell_pct)}</div></div>
+        <div title=${cfg.hasLetterGrades
+          ? "Per-school ESE not published by FL DOE in a downloadable file (Know Your Schools portal only)."
+          : "NJ publishes students-with-disabilities among grades 3-8 test-takers."}>
+          <div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "ESE / SpEd" : "SpEd (tested)"}</div>
           <div class="text-sm font-semibold ${perf.ese_pct == null ? "text-ink-400" : "text-ink-900"}">${perf.ese_pct == null ? "n/a" : pf1(perf.ese_pct)}</div>
         </div>
       </div>
@@ -959,14 +1004,22 @@ function PerformanceBlock({ perf }) {
       ` : null}
 
       <div class="text-[10px] text-ink-400 leading-snug pt-1 border-t border-ink-100">
-        Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
-        ESE not available per-school from FL DOE downloads.
+        ${cfg.hasLetterGrades ? html`
+          Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
+          ESE not available per-school from FL DOE downloads.
+        ` : html`
+          Proficiency: NJSLA ${schoolYearLabel(dy)}, grades 3-8 ELA + Math, % meeting/exceeding expectations
+          (valid-score weighted). Race, Free/Reduced Lunch and Multilingual: NJ DOE Fall Enrollment 2025-26
+          (whole school). SpEd is the share of grades 3-8 test-takers. NJ DOE reports each charter as one
+          record per district, so multi-campus networks appear as a single network-level aggregate.
+        `}
       </div>
     </div>
   `;
 }
 
-function EnrollmentChart({ enroll }) {
+function EnrollmentChart({ enroll, region }) {
+  const src = region === "nj" ? "NJ DOE Fall Enrollment" : "FL DOE Survey 2";
   const YEARS = ["2122","2223","2324","2425","2526"];
   const LABELS = ["'21-'22","'22-'23","'23-'24","'24-'25","'25-'26"];
   const totals = YEARS.map(y => enroll.years?.[y]?.total ?? null);
@@ -980,7 +1033,7 @@ function EnrollmentChart({ enroll }) {
   return html`
     <div class="bg-ink-50 rounded-md p-2.5">
       <div class="flex items-baseline justify-between mb-1.5">
-        <div class="text-[11px] font-medium text-ink-700">Historical Enrollment (FL DOE Survey 2)</div>
+        <div class="text-[11px] font-medium text-ink-700">Historical Enrollment (${src})</div>
         ${chg != null ? html`
           <div class="text-[11px] ${chgCls}">5-yr: ${chg >= 0 ? "+" : ""}${fmt.int(chg)} (${chgPct != null ? (chgPct*100).toFixed(1) : "?"}%)</div>
         ` : null}

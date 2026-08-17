@@ -74,6 +74,25 @@ export async function loadAll() {
     j("./data/orange_places.geojson").catch(() => null),
   ]);
 
+  // ---------- New Jersey (Newark · Camden · Paterson) ----------
+  // NJ cities are divided by ward rather than school-board district, and the
+  // NJ ETL emits the same property names as the FL data so the school/heat-map
+  // layers can be shared.
+  const [njWards, njPlaces, njBlockgroups, acsNj, njWardRollup, njCityRollup,
+         bgNjWardAssignment, njSchools, njPerformance, njEnrollment, njRings] = await Promise.all([
+    j("./data/nj_wards.geojson").catch(() => null),
+    j("./data/nj_places.geojson").catch(() => null),
+    j("./data/nj_blockgroups.geojson").catch(() => null),
+    j("./data/acs_nj.json").catch(() => null),
+    j("./data/nj_ward_rollup.json").catch(() => null),
+    j("./data/nj_city_rollup.json").catch(() => null),
+    j("./data/bg_nj_ward_assignment.json").catch(() => null),
+    j("./data/nj_schools.geojson").catch(() => null),
+    j("./data/nj_school_performance.json").catch(() => null),
+    j("./data/nj_enrollment.json").catch(() => null),
+    j("./data/nj_rings.json").catch(() => null),
+  ]);
+
   // Merge Orange into the combined structures the layers already iterate, so the
   // school-dots / performance / heatmap / rings / PLP code picks it up unchanged.
   const mergedUniversal = universalSchools
@@ -100,6 +119,9 @@ export async function loadAll() {
     bgOrange, orangeSbd, orangeSbdRollup,
     // Municipal boundaries (incorporated places), per county
     browardPlaces, mdcPlaces, orangePlaces,
+    // New Jersey
+    njWards, njPlaces, njBlockgroups, acsNj, njWardRollup, njCityRollup,
+    bgNjWardAssignment, njSchools, njPerformance, njEnrollment, njRings,
   };
 }
 

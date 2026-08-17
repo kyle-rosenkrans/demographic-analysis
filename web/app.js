@@ -9,12 +9,14 @@ import { PROF_STOPS } from "./utils.js";
 import { SchoolPanel } from "./campus.js";
 import { DistrictPanel } from "./sbd.js";
 import { LayersPanel } from "./heatmap.js";
+import { REGIONS, REGION_IDS, regionCfg } from "./region.js";
 
 const html = htm.bind(h);
 
 export const store = createStore({
   data:              null,
-  county:            "broward",         // drives sidebar district list only
+  region:            "fl",              // "fl" | "nj" — see web/region.js
+  county:            "broward",         // active sub-area (FL county / NJ city)
   ring:              "5min",
   focusCampus:       null,
   focusDistrict:     null,
@@ -29,6 +31,13 @@ export const store = createStore({
   showBrowardPlaces:   false,            // per-county municipal (incorporated place) boundaries
   showMiamiDadePlaces: false,
   showOrangePlaces:    false,
+  // New Jersey: wards are the sub-city unit, plus the city outline itself
+  showNewarkWards:     true,
+  showCamdenWards:     true,
+  showPatersonWards:   true,
+  showNewarkPlaces:    false,
+  showCamdenPlaces:    false,
+  showPatersonPlaces:  false,
   showStepUp:        false,
   showCharters:      false,
   showPublicSchools: false,
@@ -106,11 +115,6 @@ function applyUi(u) {
   });
 }
 
-const REGIONS = [
-  { id: "broward",   label: "Broward",     center: [-80.22, 26.15] },
-  { id: "miamidade", label: "Miami-Dade",  center: [-80.35, 25.75] },
-  { id: "orange",    label: "Orange",      center: [-81.34, 28.51] },
-];
 const ACCENTS = [
   { id: "miami",    label: "Miami",    color: "#F9A21A" },
   { id: "newark",   label: "Newark",   color: "#57C0E9" },
@@ -164,40 +168,74 @@ async function syncLayerVisibility(state) {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", state.showHeatMap ? "visible" : "none");
   });
 
-  // Per-county SBD fill + line
+  const region = state.region || "fl";
+  const isFL = region === "fl";
   const sbdVis = (vis) => vis ? "visible" : "none";
+
+  // Hide every layer owned by the region that isn't active. Layers shared
+  // between regions (school dots, performance, heat map) aren't listed as
+  // owned — their *source data* is swapped on region change instead.
+  for (const other of REGION_IDS) {
+    if (other === region) continue;
+    for (const id of regionCfg(other).ownedLayers) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", "none");
+    }
+  }
+
+  // Per-county SBD fill + line (Florida)
   ["sbd-brw-fill", "sbd-brw-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showBrowardSBD));
   });
   ["sbd-mdc-fill", "sbd-mdc-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadeSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showMiamiDadeSBD));
   });
   ["sbd-org-fill", "sbd-org-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangeSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showOrangeSBD));
   });
 
-  // Per-county municipal (incorporated place) boundary fill + line
+  // Per-county municipal (incorporated place) boundary fill + line (Florida)
   ["places-brw-fill", "places-brw-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardPlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showBrowardPlaces));
   });
   ["places-mdc-fill", "places-mdc-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadePlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showMiamiDadePlaces));
   });
   ["places-org-fill", "places-org-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangePlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showOrangePlaces));
   });
+
+  // New Jersey wards + city outlines
+  const njWardFlag = { nwk: "showNewarkWards", cam: "showCamdenWards", pat: "showPatersonWards" };
+  const njPlaceFlag = { nwk: "showNewarkPlaces", cam: "showCamdenPlaces", pat: "showPatersonPlaces" };
+  for (const [tag, flag] of Object.entries(njWardFlag)) {
+    [`wards-${tag}-fill`, `wards-${tag}-line`].forEach(id => {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(!isFL && state[flag]));
+    });
+  }
+  for (const [tag, flag] of Object.entries(njPlaceFlag)) {
+    const id = `njplaces-${tag}-line`;
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(!isFL && state[flag]));
+  }
 
   // Per-county District labels (HTML markers tagged with .dataset.sbdCounty)
   (window.__sbdLabelMarkers || []).forEach(lm => {
     const el = lm.getElement();
     const tag = el.dataset.sbdCounty;
-    const on = tag === "mdc" ? state.showMiamiDadeSBD : tag === "org" ? state.showOrangeSBD : state.showBrowardSBD;
+    const on = isFL && (tag === "mdc" ? state.showMiamiDadeSBD
+      : tag === "org" ? state.showOrangeSBD : state.showBrowardSBD);
     el.style.display = on ? "" : "none";
   });
 
-  // Step Up markers — gated only on their own toggle, independent of the SBD layer.
+  // Ward labels (NJ)
+  (window.__wardLabelMarkers || []).forEach(lm => {
+    const el = lm.getElement();
+    const on = !isFL && state[njWardFlag[el.dataset.wardTag]];
+    el.style.display = on ? "" : "none";
+  });
+
+  // Step Up markers — Florida only (NJ has no equivalent private-school roster).
   (window.__stepupMarkers || []).forEach(mk => {
-    mk.getElement().style.display = state.showStepUp ? "" : "none";
+    mk.getElement().style.display = (isFL && state.showStepUp) ? "" : "none";
   });
 
   // Campus rings: show only when a school is focused
@@ -216,17 +254,18 @@ async function syncLayerVisibility(state) {
   if (m.getLayer("school-dots-perf"))
     m.setLayoutProperty("school-dots-perf", "visibility", state.showPerformance ? "visible" : "none");
 
-  // Underutilized schools (400+ surplus seats)
+  // Underutilized schools (400+ surplus seats) — Florida only
   if (m.getLayer("school-dots-underutilized"))
-    m.setLayoutProperty("school-dots-underutilized", "visibility", state.showUnderutilized ? "visible" : "none");
+    m.setLayoutProperty("school-dots-underutilized", "visibility",
+      (isFL && state.showUnderutilized) ? "visible" : "none");
 
-  // Persistently Low-Performing (PLP) schools — FL DOE 2024-25 list
+  // Persistently Low-Performing (PLP) schools — FL DOE 2024-25 list, Florida only
   if (m.getLayer("school-dots-plp"))
-    m.setLayoutProperty("school-dots-plp", "visibility", state.showPlp ? "visible" : "none");
+    m.setLayoutProperty("school-dots-plp", "visibility", (isFL && state.showPlp) ? "visible" : "none");
 
   // 5-mile radius around focused PLP school (separate from drive-time ring)
-  const plpRadiusVis = (state.showPlpRadius && state.focusCampus && state.data?.plpSchools?.[state.focusCampus])
-    ? "visible" : "none";
+  const plpRadiusVis = (isFL && state.showPlpRadius && state.focusCampus
+    && state.data?.plpSchools?.[state.focusCampus]) ? "visible" : "none";
   ["plp-radius-fill", "plp-radius-line"].forEach(id => {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", plpRadiusVis);
   });
@@ -254,19 +293,22 @@ function App() {
   // Layer visibility sync
   useEffect(() => {
     if (state.data) syncLayerVisibility(state);
-  }, [state.data, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
+  }, [state.data, state.region, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
       state.focusCampus, state.showCharters, state.showPublicSchools,
       state.showUnderutilized, state.showPlp, state.showPlpRadius, state.showStepUp,
       state.showPerformance, state.showOrangeSBD,
-      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces]);
+      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces,
+      state.showNewarkWards, state.showCamdenWards, state.showPatersonWards,
+      state.showNewarkPlaces, state.showCamdenPlaces, state.showPatersonPlaces]);
 
-  // Fly to county center when county changes (skip first render)
+  // Fly to the active sub-area when it changes (skip first render)
   useEffect(() => {
     if (!state.data) return;
     if (isFirstCounty.current) { isFirstCounty.current = false; return; }
-    const region = REGIONS.find(r => r.id === state.county) || REGIONS[0];
-    mapReady.then(m => m.flyTo({ center: region.center, zoom: 9.2, duration: 700 }));
-  }, [state.county]);
+    const cfg = regionCfg(state.region);
+    const area = cfg.areas.find(a => a.id === state.county) || cfg.areas[0];
+    mapReady.then(m => m.flyTo({ center: area.center, zoom: area.zoom || 9.2, duration: 700 }));
+  }, [state.county, state.region]);
 
   if (!state.data) {
     return html`<div class="shell" style="align-items:center;justify-content:center">
@@ -300,19 +342,19 @@ function Shell({ state, store, ui, setUi, menu, setMenu }) {
           </button>
         </div>
         ${state.showHeatMap ? html`<div id="heatmap-legend" class="legend"></div>` : null}
-        ${state.showPerformance ? PerfLegend() : null}
+        ${state.showPerformance ? PerfLegend({ region: state.region }) : null}
       </div>
     </div>
   `;
 }
 
 // Legend for the School Performance layer: proficiency color ramp + shape key.
-function PerfLegend() {
+function PerfLegend({ region }) {
   const gradient = `linear-gradient(to right, ${PROF_STOPS.map(([v,c]) => `${c} ${v}%`).join(", ")})`;
   return html`
     <div class="legend perf">
       <div class="lgtitle" style="font-weight:600;margin-bottom:3px">School Performance</div>
-      <div style="color:var(--ink-500);margin-bottom:5px">% scoring Level 3+ (ELA+Math)</div>
+      <div style="color:var(--ink-500);margin-bottom:5px">${regionCfg(region).perfCaption}</div>
       <div style="height:9px;border-radius:3px;background:${gradient}"></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-400);margin-top:2px"><span>0%</span><span>50%</span><span>100%</span></div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)">
@@ -336,24 +378,39 @@ function TopBar({ state, store, ui, setUi, menu, setMenu }) {
     <div class="opts">
       ${list.map(([v, label]) => html`<button class="seg ${ui[key] === v ? "on" : ""}" onClick=${() => set({ [key]: v })}>${label}</button>`)}
     </div>`;
+  const cfg = regionCfg(state.region);
+  // Switching region resets the sub-area and any focused school/sub-area,
+  // since those ids only exist within one region.
+  const switchRegion = (rid) => {
+    if (rid === state.region) return;
+    const next = regionCfg(rid);
+    store.set({ region: rid, county: next.areas[0].id, focusDistrict: null, focusCampus: null,
+                schoolSearch: "" });
+    mapReady.then(m => m.flyTo({ ...next.statewide, duration: 800 }));
+  };
   return html`
     <header class="topbar">
       <div class="brand">
         <div class="mark">K</div>
         <div class="bar"></div>
         <div>
-          <div class="eyebrow">KIPP Miami · Growth & Facilities</div>
+          <div class="eyebrow">${cfg.eyebrow}</div>
           <div class="title">Demographic Analysis</div>
         </div>
       </div>
-      <div class="segset">
-        ${REGIONS.map(r => html`
-          <button class="seg ${state.county === r.id ? "on" : ""}"
-            onClick=${() => store.set({ county: r.id, focusDistrict: null })}>${r.label}</button>`)}
+      <div class="segset" title="Switch state">
+        ${REGION_IDS.map(rid => html`
+          <button class="seg ${state.region === rid ? "on" : ""}"
+            onClick=${() => switchRegion(rid)}>${REGIONS[rid].short}</button>`)}
       </div>
-      <button class="ghost" onClick=${() => mapReady.then(m => m.flyTo({ center: [-81.7, 27.9], zoom: 6.3, duration: 800 }))}>Statewide</button>
+      <div class="segset">
+        ${cfg.areas.map(a => html`
+          <button class="seg ${state.county === a.id ? "on" : ""}"
+            onClick=${() => store.set({ county: a.id, focusDistrict: null })}>${a.label}</button>`)}
+      </div>
+      <button class="ghost" onClick=${() => mapReady.then(m => m.flyTo({ ...cfg.statewide, duration: 800 }))}>${cfg.statewide.label}</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
-        <div class="topmeta">ACS 5-Yr 2023 · FL DOE 2025–26</div>
+        <div class="topmeta">${cfg.sourceLine}</div>
         <button class="ghost ${menu ? "hot" : ""}" onClick=${(e) => { e.stopPropagation(); setMenu(!menu); }}>Display</button>
       </div>
       ${menu ? html`

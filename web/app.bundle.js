@@ -211,6 +211,195 @@ function rankCohort(cohort, weights = DEFAULT_WEIGHTS) {
   return { maxes, mins, scored, avg };
 }
 
+// ==== region.js ====
+// Region configuration — the single place that knows how Florida and New Jersey
+// differ. Everything else in the app reads from here so adding a region (or
+// changing one) doesn't mean hunting through five files.
+//
+// The two regions are deliberately NOT symmetric:
+//   • Florida is organized by county + school-board district (SBD). NJ districts
+//     here are citywide, so the meaningful sub-city unit is the WARD.
+//   • The Florida-specific layers (School of Hope eligibility, Persistently
+//     Low-Performing) have no NJ analog and are omitted there.
+//   • NJ has no statewide A-F letter grade, so the detail card's grade tile and
+//     grade trend are Florida-only.
+//
+// The NJ ETL deliberately emits the same property names as the Florida data
+// (`role`, `enrollment_2526`, `ela_math`, `id`, `name`, `city`, `county`), which
+// lets the school-point, performance and heat-map layers be shared outright —
+// only the source data is swapped when the region changes.
+
+const REGIONS = {
+  fl: {
+    id: "fl",
+    label: "Florida",
+    short: "FL",
+    eyebrow: "KIPP Miami · Growth & Facilities",
+    subLabel: "Broward · Miami-Dade · Orange",
+    sourceLine: "ACS 5-Yr 2023 · FL DOE 2025–26",
+    statewide: { center: [-81.7, 27.9], zoom: 6.3, label: "Statewide" },
+    // Sub-regions shown as the segmented control in the top bar.
+    areas: [
+      { id: "broward",   label: "Broward",    center: [-80.22, 26.15], zoom: 9.2 },
+      { id: "miamidade", label: "Miami-Dade", center: [-80.35, 25.75], zoom: 9.2 },
+      { id: "orange",    label: "Orange",     center: [-81.34, 28.51], zoom: 9.2 },
+    ],
+    data: {
+      schools: "universalSchools",
+      performance: "schoolPerformance",
+      rings: "universalRings",
+      enrollment: "enrollBySchool",
+      blockGroups: ["bgBroward", "bgMiami", "bgOrange"],
+      acs: "acs",
+    },
+    // Government Boundaries panel: one group per county.
+    boundaryGroups: [
+      { label: "Broward", items: [
+        { flag: "showBrowardSBD",    title: "School Board Districts", caption: "D1–D7" },
+        { flag: "showBrowardPlaces", title: "Municipal Boundaries",
+          caption: "incorporated city/town limits", countKey: "browardPlaces" },
+      ]},
+      { label: "Miami-Dade", items: [
+        { flag: "showMiamiDadeSBD",    title: "School Board Districts", caption: "D1–D9" },
+        { flag: "showMiamiDadePlaces", title: "Municipal Boundaries",
+          caption: "incorporated city/town limits", countKey: "mdcPlaces" },
+      ]},
+      { label: "Orange", items: [
+        { flag: "showOrangeSBD",    title: "School Board Districts", caption: "D1–D7" },
+        { flag: "showOrangePlaces", title: "Municipal Boundaries",
+          caption: "incorporated city/town limits", countKey: "orangePlaces" },
+      ]},
+    ],
+    // Map layer ids owned by this region, hidden when the other region is active.
+    ownedLayers: [
+      "sbd-brw-fill", "sbd-brw-line", "sbd-mdc-fill", "sbd-mdc-line",
+      "sbd-org-fill", "sbd-org-line",
+      "places-brw-fill", "places-brw-line", "places-mdc-fill", "places-mdc-line",
+      "places-org-fill", "places-org-line",
+      "school-dots-underutilized", "school-dots-plp", "plp-radius-fill", "plp-radius-line",
+    ],
+    hasStateSpecific: true,       // School of Hope + PLP section
+    hasLetterGrades: true,
+    hasStepUp: true,              // Step Up private schools
+    subAreaNoun: "District",      // "District 5" in the analysis panel
+    subAreaNounPlural: "Districts",
+    analysisTitle: "District Analysis · Charter Ops · Step Up",
+    perfCaption: "% scoring Level 3+ (ELA+Math)",
+    perfSourceNote: "FL DOE School Grades",
+  },
+
+  nj: {
+    id: "nj",
+    label: "New Jersey",
+    short: "NJ",
+    eyebrow: "KIPP NJ · Growth & Facilities",
+    subLabel: "Newark · Camden · Paterson",
+    sourceLine: "ACS 5-Yr 2023 · NJ DOE 2025–26 · NJSLA 2024–25",
+    // Framed to hold all three cities at once: Camden (39.94) up to Paterson
+    // (40.92), rather than the geographic center of the state.
+    statewide: { center: [-74.62, 40.44], zoom: 8.3, label: "All 3 cities" },
+    areas: [
+      { id: "newark",   label: "Newark",   center: [-74.172, 40.735], zoom: 11.4 },
+      { id: "camden",   label: "Camden",   center: [-75.105, 39.938], zoom: 12.0 },
+      { id: "paterson", label: "Paterson", center: [-74.163, 40.917], zoom: 12.0 },
+    ],
+    data: {
+      schools: "njSchools",
+      performance: "njPerformance",
+      rings: "njRings",
+      enrollment: "njEnrollment",
+      blockGroups: ["njBlockgroups"],
+      acs: "acsNj",
+    },
+    // NJ cities are divided by ward rather than school-board district.
+    boundaryGroups: [
+      { label: "Newark", items: [
+        { flag: "showNewarkWards",  title: "Wards", caption: "5 wards · Central/East/North/South/West" },
+        { flag: "showNewarkPlaces", title: "City Boundary", caption: "municipal limits" },
+      ]},
+      { label: "Camden", items: [
+        { flag: "showCamdenWards",  title: "Wards", caption: "4 wards" },
+        { flag: "showCamdenPlaces", title: "City Boundary", caption: "municipal limits" },
+      ]},
+      { label: "Paterson", items: [
+        { flag: "showPatersonWards",  title: "Wards", caption: "6 wards" },
+        { flag: "showPatersonPlaces", title: "City Boundary", caption: "municipal limits" },
+      ]},
+    ],
+    ownedLayers: [
+      "wards-nwk-fill", "wards-nwk-line", "wards-cam-fill", "wards-cam-line",
+      "wards-pat-fill", "wards-pat-line",
+      "njplaces-nwk-line", "njplaces-cam-line", "njplaces-pat-line",
+    ],
+    hasStateSpecific: false,
+    hasLetterGrades: false,
+    hasStepUp: false,
+    subAreaNoun: "Ward",
+    subAreaNounPlural: "Wards",
+    analysisTitle: "Ward Analysis",
+    perfCaption: "% meeting/exceeding expectations (NJSLA ELA+Math)",
+    perfSourceNote: "NJSLA",
+  },
+};
+
+const REGION_IDS = ["fl", "nj"];
+
+// city/county id -> the 3-letter tag used in map layer ids
+const AREA_TAG = {
+  broward: "brw", miamidade: "mdc", orange: "org",
+  newark: "nwk", camden: "cam", paterson: "pat",
+};
+
+function regionCfg(region) {
+  return REGIONS[region] || REGIONS.fl;
+}
+
+// Which region does a given area id belong to?
+function regionOfArea(areaId) {
+  for (const r of REGION_IDS) {
+    if (REGIONS[r].areas.some(a => a.id === areaId)) return r;
+  }
+  return "fl";
+}
+
+// Pull the active region's slice of the loaded dataset. Returns the same shape
+// for both regions so callers don't branch.
+function regionData(data, region) {
+  if (!data) return null;
+  const d = regionCfg(region).data;
+  const bgs = d.blockGroups.map(k => data[k]).filter(Boolean);
+  return {
+    schools: data[d.schools] || null,
+    performance: data[d.performance] || null,
+    rings: data[d.rings] || null,
+    enrollment: data[d.enrollment] || null,
+    blockGroups: bgs,
+    acs: data[d.acs] || {},
+  };
+}
+
+// Performance lookup key. Florida keys on "<district>-<school_num>" (built from
+// county + school number); NJ keys performance by the school id directly, so the
+// ETL didn't have to invent a parallel key space.
+function perfKeyFor(region, props) {
+  if (!props) return null;
+  if (region === "nj") return props.id || null;
+  const num = props.school_num;
+  if (!num) return null;
+  const d = props.county === "miamidade" ? "13" : props.county === "orange" ? "48" : "06";
+  return `${d}-${num}`;
+}
+
+// Enrollment-history lookup key, same reasoning as perfKeyFor.
+function enrollKeyFor(region, props) {
+  if (!props) return null;
+  if (region === "nj") return props.id || null;
+  if (props.enroll_key) return props.enroll_key;
+  if (!props.school_num) return null;
+  const d = props.county === "miamidade" ? "13" : props.county === "orange" ? "48" : "06";
+  return `${d}-${props.school_num}`;
+}
+
 // ==== state.js ====
 // Data loader + small reactive store.
 // All GeoJSON/JSON lives in ../data/processed (symlinked as ./data/).
@@ -288,6 +477,25 @@ async function loadAll() {
     j("./data/orange_places.geojson").catch(() => null),
   ]);
 
+  // ---------- New Jersey (Newark · Camden · Paterson) ----------
+  // NJ cities are divided by ward rather than school-board district, and the
+  // NJ ETL emits the same property names as the FL data so the school/heat-map
+  // layers can be shared.
+  const [njWards, njPlaces, njBlockgroups, acsNj, njWardRollup, njCityRollup,
+         bgNjWardAssignment, njSchools, njPerformance, njEnrollment, njRings] = await Promise.all([
+    j("./data/nj_wards.geojson").catch(() => null),
+    j("./data/nj_places.geojson").catch(() => null),
+    j("./data/nj_blockgroups.geojson").catch(() => null),
+    j("./data/acs_nj.json").catch(() => null),
+    j("./data/nj_ward_rollup.json").catch(() => null),
+    j("./data/nj_city_rollup.json").catch(() => null),
+    j("./data/bg_nj_ward_assignment.json").catch(() => null),
+    j("./data/nj_schools.geojson").catch(() => null),
+    j("./data/nj_school_performance.json").catch(() => null),
+    j("./data/nj_enrollment.json").catch(() => null),
+    j("./data/nj_rings.json").catch(() => null),
+  ]);
+
   // Merge Orange into the combined structures the layers already iterate, so the
   // school-dots / performance / heatmap / rings / PLP code picks it up unchanged.
   const mergedUniversal = universalSchools
@@ -314,6 +522,9 @@ async function loadAll() {
     bgOrange, orangeSbd, orangeSbdRollup,
     // Municipal boundaries (incorporated places), per county
     browardPlaces, mdcPlaces, orangePlaces,
+    // New Jersey
+    njWards, njPlaces, njBlockgroups, acsNj, njWardRollup, njCityRollup,
+    bgNjWardAssignment, njSchools, njPerformance, njEnrollment, njRings,
   };
 }
 
@@ -346,7 +557,8 @@ function createStore(initial) {
 const html = htm.bind(h);
 const store = createStore({
   data:              null,
-  county:            "broward",         // drives sidebar district list only
+  region:            "fl",              // "fl" | "nj" — see web/region.js
+  county:            "broward",         // active sub-area (FL county / NJ city)
   ring:              "5min",
   focusCampus:       null,
   focusDistrict:     null,
@@ -361,6 +573,13 @@ const store = createStore({
   showBrowardPlaces:   false,            // per-county municipal (incorporated place) boundaries
   showMiamiDadePlaces: false,
   showOrangePlaces:    false,
+  // New Jersey: wards are the sub-city unit, plus the city outline itself
+  showNewarkWards:     true,
+  showCamdenWards:     true,
+  showPatersonWards:   true,
+  showNewarkPlaces:    false,
+  showCamdenPlaces:    false,
+  showPatersonPlaces:  false,
   showStepUp:        false,
   showCharters:      false,
   showPublicSchools: false,
@@ -438,11 +657,6 @@ function applyUi(u) {
   });
 }
 
-const REGIONS = [
-  { id: "broward",   label: "Broward",     center: [-80.22, 26.15] },
-  { id: "miamidade", label: "Miami-Dade",  center: [-80.35, 25.75] },
-  { id: "orange",    label: "Orange",      center: [-81.34, 28.51] },
-];
 const ACCENTS = [
   { id: "miami",    label: "Miami",    color: "#F9A21A" },
   { id: "newark",   label: "Newark",   color: "#57C0E9" },
@@ -496,40 +710,74 @@ async function syncLayerVisibility(state) {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", state.showHeatMap ? "visible" : "none");
   });
 
-  // Per-county SBD fill + line
+  const region = state.region || "fl";
+  const isFL = region === "fl";
   const sbdVis = (vis) => vis ? "visible" : "none";
+
+  // Hide every layer owned by the region that isn't active. Layers shared
+  // between regions (school dots, performance, heat map) aren't listed as
+  // owned — their *source data* is swapped on region change instead.
+  for (const other of REGION_IDS) {
+    if (other === region) continue;
+    for (const id of regionCfg(other).ownedLayers) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", "none");
+    }
+  }
+
+  // Per-county SBD fill + line (Florida)
   ["sbd-brw-fill", "sbd-brw-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showBrowardSBD));
   });
   ["sbd-mdc-fill", "sbd-mdc-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadeSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showMiamiDadeSBD));
   });
   ["sbd-org-fill", "sbd-org-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangeSBD));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showOrangeSBD));
   });
 
-  // Per-county municipal (incorporated place) boundary fill + line
+  // Per-county municipal (incorporated place) boundary fill + line (Florida)
   ["places-brw-fill", "places-brw-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showBrowardPlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showBrowardPlaces));
   });
   ["places-mdc-fill", "places-mdc-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showMiamiDadePlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showMiamiDadePlaces));
   });
   ["places-org-fill", "places-org-line"].forEach(id => {
-    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(state.showOrangePlaces));
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(isFL && state.showOrangePlaces));
   });
+
+  // New Jersey wards + city outlines
+  const njWardFlag = { nwk: "showNewarkWards", cam: "showCamdenWards", pat: "showPatersonWards" };
+  const njPlaceFlag = { nwk: "showNewarkPlaces", cam: "showCamdenPlaces", pat: "showPatersonPlaces" };
+  for (const [tag, flag] of Object.entries(njWardFlag)) {
+    [`wards-${tag}-fill`, `wards-${tag}-line`].forEach(id => {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(!isFL && state[flag]));
+    });
+  }
+  for (const [tag, flag] of Object.entries(njPlaceFlag)) {
+    const id = `njplaces-${tag}-line`;
+    if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", sbdVis(!isFL && state[flag]));
+  }
 
   // Per-county District labels (HTML markers tagged with .dataset.sbdCounty)
   (window.__sbdLabelMarkers || []).forEach(lm => {
     const el = lm.getElement();
     const tag = el.dataset.sbdCounty;
-    const on = tag === "mdc" ? state.showMiamiDadeSBD : tag === "org" ? state.showOrangeSBD : state.showBrowardSBD;
+    const on = isFL && (tag === "mdc" ? state.showMiamiDadeSBD
+      : tag === "org" ? state.showOrangeSBD : state.showBrowardSBD);
     el.style.display = on ? "" : "none";
   });
 
-  // Step Up markers — gated only on their own toggle, independent of the SBD layer.
+  // Ward labels (NJ)
+  (window.__wardLabelMarkers || []).forEach(lm => {
+    const el = lm.getElement();
+    const on = !isFL && state[njWardFlag[el.dataset.wardTag]];
+    el.style.display = on ? "" : "none";
+  });
+
+  // Step Up markers — Florida only (NJ has no equivalent private-school roster).
   (window.__stepupMarkers || []).forEach(mk => {
-    mk.getElement().style.display = state.showStepUp ? "" : "none";
+    mk.getElement().style.display = (isFL && state.showStepUp) ? "" : "none";
   });
 
   // Campus rings: show only when a school is focused
@@ -548,17 +796,18 @@ async function syncLayerVisibility(state) {
   if (m.getLayer("school-dots-perf"))
     m.setLayoutProperty("school-dots-perf", "visibility", state.showPerformance ? "visible" : "none");
 
-  // Underutilized schools (400+ surplus seats)
+  // Underutilized schools (400+ surplus seats) — Florida only
   if (m.getLayer("school-dots-underutilized"))
-    m.setLayoutProperty("school-dots-underutilized", "visibility", state.showUnderutilized ? "visible" : "none");
+    m.setLayoutProperty("school-dots-underutilized", "visibility",
+      (isFL && state.showUnderutilized) ? "visible" : "none");
 
-  // Persistently Low-Performing (PLP) schools — FL DOE 2024-25 list
+  // Persistently Low-Performing (PLP) schools — FL DOE 2024-25 list, Florida only
   if (m.getLayer("school-dots-plp"))
-    m.setLayoutProperty("school-dots-plp", "visibility", state.showPlp ? "visible" : "none");
+    m.setLayoutProperty("school-dots-plp", "visibility", (isFL && state.showPlp) ? "visible" : "none");
 
   // 5-mile radius around focused PLP school (separate from drive-time ring)
-  const plpRadiusVis = (state.showPlpRadius && state.focusCampus && state.data?.plpSchools?.[state.focusCampus])
-    ? "visible" : "none";
+  const plpRadiusVis = (isFL && state.showPlpRadius && state.focusCampus
+    && state.data?.plpSchools?.[state.focusCampus]) ? "visible" : "none";
   ["plp-radius-fill", "plp-radius-line"].forEach(id => {
     if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", plpRadiusVis);
   });
@@ -586,19 +835,22 @@ function App() {
   // Layer visibility sync
   useEffect(() => {
     if (state.data) syncLayerVisibility(state);
-  }, [state.data, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
+  }, [state.data, state.region, state.showHeatMap, state.showBrowardSBD, state.showMiamiDadeSBD,
       state.focusCampus, state.showCharters, state.showPublicSchools,
       state.showUnderutilized, state.showPlp, state.showPlpRadius, state.showStepUp,
       state.showPerformance, state.showOrangeSBD,
-      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces]);
+      state.showBrowardPlaces, state.showMiamiDadePlaces, state.showOrangePlaces,
+      state.showNewarkWards, state.showCamdenWards, state.showPatersonWards,
+      state.showNewarkPlaces, state.showCamdenPlaces, state.showPatersonPlaces]);
 
-  // Fly to county center when county changes (skip first render)
+  // Fly to the active sub-area when it changes (skip first render)
   useEffect(() => {
     if (!state.data) return;
     if (isFirstCounty.current) { isFirstCounty.current = false; return; }
-    const region = REGIONS.find(r => r.id === state.county) || REGIONS[0];
-    mapReady.then(m => m.flyTo({ center: region.center, zoom: 9.2, duration: 700 }));
-  }, [state.county]);
+    const cfg = regionCfg(state.region);
+    const area = cfg.areas.find(a => a.id === state.county) || cfg.areas[0];
+    mapReady.then(m => m.flyTo({ center: area.center, zoom: area.zoom || 9.2, duration: 700 }));
+  }, [state.county, state.region]);
 
   if (!state.data) {
     return html`<div class="shell" style="align-items:center;justify-content:center">
@@ -632,19 +884,19 @@ function Shell({ state, store, ui, setUi, menu, setMenu }) {
           </button>
         </div>
         ${state.showHeatMap ? html`<div id="heatmap-legend" class="legend"></div>` : null}
-        ${state.showPerformance ? PerfLegend() : null}
+        ${state.showPerformance ? PerfLegend({ region: state.region }) : null}
       </div>
     </div>
   `;
 }
 
 // Legend for the School Performance layer: proficiency color ramp + shape key.
-function PerfLegend() {
+function PerfLegend({ region }) {
   const gradient = `linear-gradient(to right, ${PROF_STOPS.map(([v,c]) => `${c} ${v}%`).join(", ")})`;
   return html`
     <div class="legend perf">
       <div class="lgtitle" style="font-weight:600;margin-bottom:3px">School Performance</div>
-      <div style="color:var(--ink-500);margin-bottom:5px">% scoring Level 3+ (ELA+Math)</div>
+      <div style="color:var(--ink-500);margin-bottom:5px">${regionCfg(region).perfCaption}</div>
       <div style="height:9px;border-radius:3px;background:${gradient}"></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-400);margin-top:2px"><span>0%</span><span>50%</span><span>100%</span></div>
       <div style="display:flex;align-items:center;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair)">
@@ -668,24 +920,39 @@ function TopBar({ state, store, ui, setUi, menu, setMenu }) {
     <div class="opts">
       ${list.map(([v, label]) => html`<button class="seg ${ui[key] === v ? "on" : ""}" onClick=${() => set({ [key]: v })}>${label}</button>`)}
     </div>`;
+  const cfg = regionCfg(state.region);
+  // Switching region resets the sub-area and any focused school/sub-area,
+  // since those ids only exist within one region.
+  const switchRegion = (rid) => {
+    if (rid === state.region) return;
+    const next = regionCfg(rid);
+    store.set({ region: rid, county: next.areas[0].id, focusDistrict: null, focusCampus: null,
+                schoolSearch: "" });
+    mapReady.then(m => m.flyTo({ ...next.statewide, duration: 800 }));
+  };
   return html`
     <header class="topbar">
       <div class="brand">
         <div class="mark">K</div>
         <div class="bar"></div>
         <div>
-          <div class="eyebrow">KIPP Miami · Growth & Facilities</div>
+          <div class="eyebrow">${cfg.eyebrow}</div>
           <div class="title">Demographic Analysis</div>
         </div>
       </div>
-      <div class="segset">
-        ${REGIONS.map(r => html`
-          <button class="seg ${state.county === r.id ? "on" : ""}"
-            onClick=${() => store.set({ county: r.id, focusDistrict: null })}>${r.label}</button>`)}
+      <div class="segset" title="Switch state">
+        ${REGION_IDS.map(rid => html`
+          <button class="seg ${state.region === rid ? "on" : ""}"
+            onClick=${() => switchRegion(rid)}>${REGIONS[rid].short}</button>`)}
       </div>
-      <button class="ghost" onClick=${() => mapReady.then(m => m.flyTo({ center: [-81.7, 27.9], zoom: 6.3, duration: 800 }))}>Statewide</button>
+      <div class="segset">
+        ${cfg.areas.map(a => html`
+          <button class="seg ${state.county === a.id ? "on" : ""}"
+            onClick=${() => store.set({ county: a.id, focusDistrict: null })}>${a.label}</button>`)}
+      </div>
+      <button class="ghost" onClick=${() => mapReady.then(m => m.flyTo({ ...cfg.statewide, duration: 800 }))}>${cfg.statewide.label}</button>
       <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
-        <div class="topmeta">ACS 5-Yr 2023 · FL DOE 2025–26</div>
+        <div class="topmeta">${cfg.sourceLine}</div>
         <button class="ghost ${menu ? "hot" : ""}" onClick=${(e) => { e.stopPropagation(); setMenu(!menu); }}>Display</button>
       </div>
       ${menu ? html`
@@ -716,6 +983,19 @@ document.addEventListener("DOMContentLoaded", () => {
 // Always shows KIPP Miami North anchor. No curated 8-school cohort.
 
 const RING_MILES = { "5min": 1.83, "10min": 3.67, "15min": 5.50 };
+
+// Florida stores county as a slug ("broward"); the NJ data already carries the
+// proper county name ("Essex"), so anything unrecognized passes through.
+const COUNTY_LABELS = { broward: "Broward", miamidade: "Miami-Dade", orange: "Orange" };
+function countyLabel(county) {
+  if (!county) return "";
+  return COUNTY_LABELS[county] || county;
+}
+const COUNTY_ABBR = { broward: "BRW", miamidade: "MDC", orange: "ORG" };
+function countyAbbr(county) {
+  if (!county) return "";
+  return COUNTY_ABBR[county] || String(county).slice(0, 3).toUpperCase();
+}
 
 // KIPP Miami North anchor — always on map
 const KIPP_NORTH = {
@@ -749,19 +1029,24 @@ function makeMarkerEl(color, size = 18, border = 2.5) {
 // ---------- All-schools bubble layers (persistent) ----------
 // One GeoJSON source + two circle layers (charter + district public) sized by enrollment.
 // Click to focus a campus; hover for name+enrollment. Visibility managed by syncLayerVisibility.
-async function ensureSchoolDotLayers(map, data) {
-  if (!data?.universalSchools) return;
-  if (map.getSource("all-schools-src")) return; // already initialized
+// The source data is swapped when the region changes (FL and NJ school
+// properties share names by design), so the layers, paint and popups are built
+// once and reused for both.
+async function ensureSchoolDotLayers(map, data, region) {
+  const rd = regionData(data, region);
+  if (!rd?.schools) return;
 
-  const feats = data.universalSchools.features.filter(f => {
+  const feats = rd.schools.features.filter(f => {
     const p = f.properties;
     return p.status !== "closed" && p.role !== "incubation";
   });
+  const fc = { type: "FeatureCollection", features: feats };
 
-  map.addSource("all-schools-src", {
-    type: "geojson",
-    data: { type: "FeatureCollection", features: feats },
-  });
+  if (map.getSource("all-schools-src")) {
+    map.getSource("all-schools-src").setData(fc);
+    return;
+  }
+  map.addSource("all-schools-src", { type: "geojson", data: fc });
 
   // Radius interpolated from enrollment (0 → small, 3000 → large)
   const radiusExpr = ["interpolate", ["linear"],
@@ -817,7 +1102,7 @@ async function ensureSchoolDotLayers(map, data) {
       const enrollNum = parseFloat(p.enrollment_2526);
       const enrollStr = !isNaN(enrollNum) && enrollNum > 0
         ? `${Math.round(enrollNum).toLocaleString()} students (2025-26)` : "";
-      const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+      const countyStr = countyLabel(p.county);
       const typeStr = p.role === "charter" ? "Charter" : "Public";
       popup.setLngLat(e.lngLat)
         .setHTML(`<div style="font-size:12px;line-height:1.4">
@@ -1051,7 +1336,7 @@ async function ensurePlpLayer(map, data) {
     const enrollNum = parseFloat(p.enrollment_2526);
     const enrollStr = !isNaN(enrollNum) && enrollNum > 0
       ? `${Math.round(enrollNum).toLocaleString()} students (2025-26)` : "";
-    const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+    const countyStr = countyLabel(p.county);
     popup.setLngLat(e.lngLat)
       .setHTML(`<div style="font-size:12px;line-height:1.4;min-width:220px">
         <strong>${p.name}</strong><br>
@@ -1137,18 +1422,18 @@ function ensurePerfIcons(map) {
   }
 }
 
-async function ensurePerformanceLayer(map, data) {
-  if (!data?.universalSchools || !data?.schoolPerformance) return;
-  if (map.getSource("perf-src")) return; // idempotent
+async function ensurePerformanceLayer(map, data, region) {
+  const rd = regionData(data, region);
+  if (!rd?.schools || !rd?.performance) return;
 
   ensurePerfIcons(map);
 
-  const perf = data.schoolPerformance;
+  const perf = rd.performance;
   const feats = [];
-  for (const f of data.universalSchools.features) {
+  for (const f of rd.schools.features) {
     const p = f.properties;
     if (p.status === "closed" || p.role === "incubation") continue;
-    const rec = perf[perfKey(p)];
+    const rec = perf[perfKeyFor(region, p)];
     if (!rec) continue;                       // only schools we have performance for
     const enroll = (p.enrollment_2526 && +p.enrollment_2526 > 0)
       ? +p.enrollment_2526 : (rec.enrollment || 0);
@@ -1163,9 +1448,14 @@ async function ensurePerformanceLayer(map, data) {
       },
     });
   }
-  console.log(`[PERF] ${feats.length} schools with performance data`);
+  const fc = { type: "FeatureCollection", features: feats };
+  console.log(`[PERF:${region}] ${feats.length} schools with performance data`);
 
-  map.addSource("perf-src", { type: "geojson", data: { type: "FeatureCollection", features: feats } });
+  if (map.getSource("perf-src")) {
+    map.getSource("perf-src").setData(fc);
+    return;
+  }
+  map.addSource("perf-src", { type: "geojson", data: fc });
 
   const sizeExpr = ["interpolate", ["linear"], ["to-number", ["coalesce", ["get", "enrollment"], 0]],
     0, 0.17, 200, 0.26, 500, 0.36, 1000, 0.50, 2000, 0.66, 3500, 0.86];
@@ -1198,7 +1488,7 @@ async function ensurePerformanceLayer(map, data) {
     const pf = (v) => (v == null || v === "" || isNaN(+v)) ? "—" : `${Math.round(+v)}%`;
     const enrollNum = parseFloat(p.enrollment);
     const enrollStr = !isNaN(enrollNum) && enrollNum > 0 ? `${Math.round(enrollNum).toLocaleString()} students` : "";
-    const countyStr = p.county === "broward" ? "Broward" : "Miami-Dade";
+    const countyStr = countyLabel(p.county);
     const typeStr = p.role === "charter" ? "Charter" : "District";
     const gradeBadge = p.grade
       ? `<span style="display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:3px;color:#fff;font-weight:700;font-size:10px;background:${gradeColor(p.grade)}">${p.grade}</span>`
@@ -1228,27 +1518,34 @@ async function ensurePerformanceLayer(map, data) {
 async function renderSchoolLayers(state) {
   const map = await getMapIdle();
   const { data, ring, focusCampus } = state;
+  const region = state.region || "fl";
   if (!data) return;
+  const rd = regionData(data, region);
 
-  // Ensure persistent all-schools bubble layers exist (idempotent)
-  await ensureSchoolDotLayers(map, data);
-  await ensureUnderutilizedLayer(map, data);
-  await ensurePlpLayer(map, data);
-  await ensurePerformanceLayer(map, data);
+  // School + performance sources swap data by region; the Florida-only layers
+  // are built once and simply hidden when NJ is active.
+  await ensureSchoolDotLayers(map, data, region);
+  await ensurePerformanceLayer(map, data, region);
+  if (region === "fl") {
+    await ensureUnderutilizedLayer(map, data);
+    await ensurePlpLayer(map, data);
+  }
 
   // Clear previous school markers
   (window.__schoolMarkers || []).forEach(m => m.remove());
   window.__schoolMarkers = [];
 
-  // ── KIPP North — always-visible orange anchor marker ──
-  const kippEl = makeMarkerEl("#ea580c");
-  kippEl.title = KIPP_NORTH.name;
-  kippEl.addEventListener("click", () => window.__store?.set({ focusCampus: KIPP_NORTH.id }));
-  const kippM = new maplibregl.Marker({ element: kippEl })
-    .setLngLat(KIPP_NORTH.coords)
-    .setPopup(new maplibregl.Popup({ offset: 14 }).setText(KIPP_NORTH.name))
-    .addTo(map);
-  window.__schoolMarkers.push(kippM);
+  // ── KIPP North — always-visible orange anchor marker (Florida only) ──
+  if (region === "fl") {
+    const kippEl = makeMarkerEl("#ea580c");
+    kippEl.title = KIPP_NORTH.name;
+    kippEl.addEventListener("click", () => window.__store?.set({ focusCampus: KIPP_NORTH.id }));
+    const kippM = new maplibregl.Marker({ element: kippEl })
+      .setLngLat(KIPP_NORTH.coords)
+      .setPopup(new maplibregl.Popup({ offset: 14 }).setText(KIPP_NORTH.name))
+      .addTo(map);
+    window.__schoolMarkers.push(kippM);
+  }
 
   // ── Drive ring + focused school marker ──
   ["campus-rings-fill","campus-rings-line"].forEach(id => {
@@ -1260,8 +1557,8 @@ async function renderSchoolLayers(state) {
     let lng, lat, schoolName;
     if (focusCampus === KIPP_NORTH.id) {
       [lng, lat] = KIPP_NORTH.coords; schoolName = KIPP_NORTH.name;
-    } else if (data.universalSchools) {
-      const f = data.universalSchools.features.find(s => s.properties.id === focusCampus);
+    } else if (rd?.schools) {
+      const f = rd.schools.features.find(s => s.properties.id === focusCampus);
       if (f) { [lng, lat] = f.geometry.coordinates; schoolName = f.properties.name; }
     }
 
@@ -1322,7 +1619,7 @@ async function renderSchoolLayers(state) {
 // ---------- SchoolPanel component ----------
 function SchoolPanel({ state, store }) {
   useEffect(() => { renderSchoolLayers(state); },
-    [state.data, state.ring, state.focusCampus, state.county,
+    [state.data, state.ring, state.focusCampus, state.county, state.region,
      state.showCharters, state.showPublicSchools, state.showUnderutilized,
      state.showPlp, state.showPlpRadius]);
 
@@ -1351,8 +1648,10 @@ function SchoolPanel({ state, store }) {
 }
 
 function UniversalSchoolPicker({ data, state, store }) {
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
   // Include all schools; show closed ones grayed with a badge rather than hiding them
-  const allSchools = data.universalSchools?.features || [];
+  const allSchools = regionData(data, region)?.schools?.features || [];
   const activeCount = allSchools.filter(f => f.properties.status !== "closed").length;
   const q = (state.schoolSearch || "").trim().toLowerCase();
   const matches = !q ? [] : allSchools
@@ -1365,7 +1664,7 @@ function UniversalSchoolPicker({ data, state, store }) {
   return html`
     <div class="searchwrap">
       <div class="lbl">
-        Search <span style="color:var(--ink-700);font-weight:600">${activeCount.toLocaleString()}</span> schools — Broward, Miami-Dade, Orange
+        Search <span style="color:var(--ink-700);font-weight:600">${activeCount.toLocaleString()}</span> schools — ${cfg.subLabel}
       </div>
       <input
         type="search"
@@ -1389,7 +1688,7 @@ function UniversalSchoolPicker({ data, state, store }) {
                 ${isPlp ? html`<span class="pill bg-red-50 text-red-700 border border-red-200 flex-shrink-0 text-[10px]">PLP</span>` : null}
                 ${isClosed ? html`<span class="pill bg-red-50 text-red-600 flex-shrink-0 text-[10px]">closed</span>` : null}
                 <span class="text-ink-400 flex-shrink-0">${p.city || ""}</span>
-                <span class="pill bg-ink-100 text-ink-600 flex-shrink-0">${p.county === "broward" ? "BRW" : "MDC"}</span>
+                <span class="pill bg-ink-100 text-ink-600 flex-shrink-0">${countyAbbr(p.county)}</span>
                 ${p.enrollment_2526 && !isClosed ? html`<span class="text-ink-400 font-mono flex-shrink-0">${fmt.int(p.enrollment_2526)}</span>` : null}
               </div>
             `;
@@ -1401,11 +1700,14 @@ function UniversalSchoolPicker({ data, state, store }) {
 }
 
 function SchoolDetail({ schoolId, data, store, state }) {
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
+  const rd = regionData(data, region);
   const sch = schoolId === KIPP_NORTH.id
     ? { properties: { id: KIPP_NORTH.id, name: KIPP_NORTH.name, county: "miamidade",
                        school_type: "Incubation Site", address: "3000 NW 110th Street", city: "Miami" },
         geometry: { coordinates: KIPP_NORTH.coords } }
-    : (data.universalSchools?.features || []).find(f => f.properties.id === schoolId);
+    : (rd?.schools?.features || []).find(f => f.properties.id === schoolId);
 
   if (!sch) return html`
     <div class="p-4 text-xs text-ink-500">
@@ -1413,14 +1715,13 @@ function SchoolDetail({ schoolId, data, store, state }) {
     </div>`;
 
   const p = sch.properties;
-  const rings = data.universalRings?.[schoolId]?.rings;
-  const cap = data.schoolCapacity?.[schoolId];
-  const plp = data.plpSchools?.[schoolId];
-  const perf = data.schoolPerformance?.[perfKey(p)];
-  const enrollKey = p.enroll_key || (p.school_num
-    ? `${p.county === "miamidade" ? "13" : p.county === "orange" ? "48" : "06"}-${p.school_num}`
-    : null);
-  const enroll = enrollKey && data.enrollBySchool ? data.enrollBySchool[enrollKey] : null;
+  const rings = rd?.rings?.[schoolId]?.rings;
+  // Facility capacity / PLP are Florida-only datasets.
+  const cap = region === "fl" ? data.schoolCapacity?.[schoolId] : null;
+  const plp = region === "fl" ? data.plpSchools?.[schoolId] : null;
+  const perf = rd?.performance?.[perfKeyFor(region, p)];
+  const enrollKey = enrollKeyFor(region, p);
+  const enroll = enrollKey && rd?.enrollment ? rd.enrollment[enrollKey] : null;
   const enroll5yr = enroll ? (() => {
     const yrs = ["2122","2223","2324","2425","2526"];
     const totals = yrs.map(y => enroll.years?.[y]?.total ?? null);
@@ -1437,10 +1738,10 @@ function SchoolDetail({ schoolId, data, store, state }) {
               class="text-xs text-kipp-600 hover:underline">← Back to search</button>
       <div>
         <div class="text-[11px] uppercase tracking-wide text-ink-500">
-          ${p.county === "broward" ? "Broward" : "Miami-Dade"} · ${p.school_type || p.role || ""}
+          ${countyLabel(p.county)} · ${p.school_type || p.role || ""}
         </div>
         <h2 class="text-base font-semibold text-ink-900 leading-tight">${p.name}</h2>
-        <div class="text-xs text-ink-500">${[p.address, p.city].filter(Boolean).join(", ")}
+        <div class="text-xs text-ink-500">${[p.address, p.city && p.city.charAt(0).toUpperCase() + p.city.slice(1)].filter(Boolean).join(", ")}
           ${p.school_num ? html` · <span class="font-mono">#${p.school_num}</span>` : null}
         </div>
         <div class="flex flex-wrap gap-1.5 mt-1.5">
@@ -1491,9 +1792,9 @@ function SchoolDetail({ schoolId, data, store, state }) {
         </div>
       </div>
 
-      ${perf ? html`<${PerformanceBlock} perf=${perf} />` : null}
+      ${perf ? html`<${PerformanceBlock} perf=${perf} region=${region} />` : null}
 
-      ${enroll5yr ? html`<${EnrollmentChart} enroll=${enroll5yr} />` : null}
+      ${enroll5yr ? html`<${EnrollmentChart} enroll=${enroll5yr} region=${region} />` : null}
 
       ${cap ? (() => {
         const util = cap.utilization_pct;
@@ -1560,14 +1861,16 @@ function SchoolDetail({ schoolId, data, store, state }) {
       ` : html`<div class="text-xs text-ink-500 italic">No precomputed ring data for this school.</div>`}
 
       <div class="text-[11px] text-ink-500 leading-relaxed">
-        Drive-time rings: great-circle approx at 22 mph. ACS 5-Yr 2023.${enroll5yr ? " Enrollment: FL DOE Survey 2." : ""}
+        Drive-time rings: great-circle approx at 22 mph. ACS 5-Yr 2023.${enroll5yr
+          ? (region === "nj" ? " Enrollment: NJ DOE Fall Enrollment." : " Enrollment: FL DOE Survey 2.") : ""}
       </div>
     </div>
   `;
 }
 
 // Performance + demographics card shown when a school is focused.
-function PerformanceBlock({ perf }) {
+function PerformanceBlock({ perf, region }) {
+  const cfg = regionCfg(region || "fl");
   const pf = (v) => (v == null || isNaN(+v)) ? "—" : `${Math.round(+v)}%`;
   const pf1 = (v) => (v == null || isNaN(+v)) ? "—" : `${(+v).toFixed(1)}%`;
 
@@ -1592,10 +1895,12 @@ function PerformanceBlock({ perf }) {
     <div class="bg-ink-50 rounded-md p-2.5 space-y-2.5">
       <div class="flex items-baseline justify-between">
         <div class="text-[11px] font-semibold text-ink-700">Performance & Demographics</div>
-        <span class="text-[10px] text-ink-500">FL DOE ${schoolYearLabel(dy)}</span>
+        <span class="text-[10px] text-ink-500">${cfg.hasLetterGrades
+          ? `FL DOE ${schoolYearLabel(dy)}` : `NJSLA ${schoolYearLabel(dy)}`}</span>
       </div>
 
-      <!-- Letter grade + trend -->
+      <!-- Letter grade + trend — Florida only; NJ issues no statewide A-F grade -->
+      ${!cfg.hasLetterGrades ? null : html`
       <div class="flex items-center gap-2.5">
         <div style="width:34px;height:34px;border-radius:6px;background:${gradeColor(latestGrade)};
                     color:#fff;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -1613,11 +1918,13 @@ function PerformanceBlock({ perf }) {
             `)}
           </div>
         </div>
-      </div>
+      </div>`}
 
-      <!-- Proficiency by subject (% Level 3+) -->
+      <!-- Proficiency by subject -->
       <div>
-        <div class="text-[10px] text-ink-500 mb-1">Proficiency — % scoring Level 3+</div>
+        <div class="text-[10px] text-ink-500 mb-1">${cfg.hasLetterGrades
+          ? "Proficiency — % scoring Level 3+"
+          : "Proficiency — % meeting/exceeding expectations (grades 3-8)"}</div>
         <div class="space-y-1">
           ${SUBJECTS.map(([label, v]) => html`
             <div class="flex items-center gap-2">
@@ -1637,10 +1944,15 @@ function PerformanceBlock({ perf }) {
 
       <!-- Student demographics -->
       <div class="grid grid-cols-3 gap-2 pt-1 border-t border-ink-100">
-        <div><div class="text-[10px] text-ink-500">Econ. Disadv.</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ed_pct)}</div></div>
-        <div><div class="text-[10px] text-ink-500">ELL</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ell_pct)}</div></div>
-        <div title="Per-school ESE not published by FL DOE in a downloadable file (Know Your Schools portal only).">
-          <div class="text-[10px] text-ink-500">ESE / SpEd</div>
+        <div title=${perf.ed_basis || ""}>
+          <div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "Econ. Disadv." : "Free/Red. Lunch"}</div>
+          <div class="text-sm font-semibold text-ink-900">${pf1(perf.ed_pct)}</div>
+        </div>
+        <div><div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "ELL" : "Multilingual"}</div><div class="text-sm font-semibold text-ink-900">${pf1(perf.ell_pct)}</div></div>
+        <div title=${cfg.hasLetterGrades
+          ? "Per-school ESE not published by FL DOE in a downloadable file (Know Your Schools portal only)."
+          : "NJ publishes students-with-disabilities among grades 3-8 test-takers."}>
+          <div class="text-[10px] text-ink-500">${cfg.hasLetterGrades ? "ESE / SpEd" : "SpEd (tested)"}</div>
           <div class="text-sm font-semibold ${perf.ese_pct == null ? "text-ink-400" : "text-ink-900"}">${perf.ese_pct == null ? "n/a" : pf1(perf.ese_pct)}</div>
         </div>
       </div>
@@ -1664,14 +1976,22 @@ function PerformanceBlock({ perf }) {
       ` : null}
 
       <div class="text-[10px] text-ink-400 leading-snug pt-1 border-t border-ink-100">
-        Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
-        ESE not available per-school from FL DOE downloads.
+        ${cfg.hasLetterGrades ? html`
+          Proficiency & grades: FL DOE School Grades ${schoolYearLabel(dy)}. Race/ELL: FL DOE Membership 2025-26 Survey 2.
+          ESE not available per-school from FL DOE downloads.
+        ` : html`
+          Proficiency: NJSLA ${schoolYearLabel(dy)}, grades 3-8 ELA + Math, % meeting/exceeding expectations
+          (valid-score weighted). Race, Free/Reduced Lunch and Multilingual: NJ DOE Fall Enrollment 2025-26
+          (whole school). SpEd is the share of grades 3-8 test-takers. NJ DOE reports each charter as one
+          record per district, so multi-campus networks appear as a single network-level aggregate.
+        `}
       </div>
     </div>
   `;
 }
 
-function EnrollmentChart({ enroll }) {
+function EnrollmentChart({ enroll, region }) {
+  const src = region === "nj" ? "NJ DOE Fall Enrollment" : "FL DOE Survey 2";
   const YEARS = ["2122","2223","2324","2425","2526"];
   const LABELS = ["'21-'22","'22-'23","'23-'24","'24-'25","'25-'26"];
   const totals = YEARS.map(y => enroll.years?.[y]?.total ?? null);
@@ -1685,7 +2005,7 @@ function EnrollmentChart({ enroll }) {
   return html`
     <div class="bg-ink-50 rounded-md p-2.5">
       <div class="flex items-baseline justify-between mb-1.5">
-        <div class="text-[11px] font-medium text-ink-700">Historical Enrollment (FL DOE Survey 2)</div>
+        <div class="text-[11px] font-medium text-ink-700">Historical Enrollment (${src})</div>
         ${chg != null ? html`
           <div class="text-[11px] ${chgCls}">5-yr: ${chg >= 0 ? "+" : ""}${fmt.int(chg)} (${chgPct != null ? (chgPct*100).toFixed(1) : "?"}%)</div>
         ` : null}
@@ -1724,14 +2044,15 @@ const METRICS = [
   { id: "suitability",  label: "Suitability Score",  ramp: RAMP_ORANGE, kind: "pct" },
 ];
 
-// Build a combined FC of block-groups with ACS joined
-function joinedBGs(data) {
+// Build a combined FC of block-groups with ACS joined, for the active region.
+function joinedBGs(data, region) {
+  const rd = regionData(data, region);
   const feats = [];
-  for (const src of [data.bgBroward, data.bgMiami, data.bgOrange]) {
+  for (const src of rd.blockGroups) {
     if (!src) continue;
     for (const f of src.features) {
       const g = f.properties?.GEOID;
-      const rec = data.acs[g];
+      const rec = rd.acs[g];
       if (!rec) continue;
       const merged = { ...f.properties, ...rec };
       merged.pop_k_8_est = (rec.pop_k_4_est || 0) + (rec.pop_5_8_est || 0);
@@ -1762,6 +2083,7 @@ function addSuitability(fc, weights) {
 }
 
 let BG_FC = null;
+let BG_REGION = null;   // which region BG_FC was built for
 let CURRENT_LAYER = null;
 let CURRENT_BREAKS = null;
 
@@ -1769,10 +2091,14 @@ let CURRENT_BREAKS = null;
 async function renderHeatLayers(state) {
   const map = await getMapIdle();
   const { data, heatLayer, showHeatMap } = state;
+  const region = state.region || "fl";
   if (!data) return;
 
-  if (!BG_FC) {
-    BG_FC = joinedBGs(data);
+  // Rebuild the joined block groups when the region changes — the heat map
+  // shares one `bg` source between regions and swaps its data.
+  if (!BG_FC || BG_REGION !== region) {
+    BG_FC = joinedBGs(data, region);
+    BG_REGION = region;
     addSuitability(BG_FC, state.weights || DEFAULT_WEIGHTS);
   } else if (heatLayer === "suitability") {
     addSuitability(BG_FC, state.weights || DEFAULT_WEIGHTS);
@@ -1862,29 +2188,32 @@ function formatBreak(v, kind) {
 function LayersPanel({ state, store }) {
   useEffect(() => {
     if (state.showHeatMap) renderHeatLayers(state);
-  }, [state.data, state.heatLayer, state.weights, state.showHeatMap]);
+  }, [state.data, state.heatLayer, state.weights, state.showHeatMap, state.region]);
 
   // Re-run legend update whenever heat map is shown
   useEffect(() => {
     if (state.showHeatMap && CURRENT_LAYER && CURRENT_BREAKS) {
       updateLegendDOM(CURRENT_LAYER, CURRENT_BREAKS);
     }
-  }, [state.showHeatMap]);
+  }, [state.showHeatMap, state.region]);
 
   const { data } = state;
   if (!data) return null;
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
+  const rd = regionData(data, region);
 
   const weights = state.weights || { ...DEFAULT_WEIGHTS };
   const total = Object.values(weights).reduce((a,b) => a+(b||0), 0);
 
-  const live = (data.universalSchools?.features || []).filter(f =>
+  const live = (rd.schools?.features || []).filter(f =>
     f.properties.status !== "closed" && f.properties.role !== "incubation");
   const counts = {
     district: live.filter(f => f.properties.role === "district").length,
     charter: live.filter(f => f.properties.role === "charter").length,
     stepup: data.stepupSchools?.features.length || 0,
     plp: Object.keys(data.plpSchools || {}).length,
-    perf: data.schoolPerformance ? live.filter(f => data.schoolPerformance[perfKey(f.properties)]).length : 0,
+    perf: rd.performance ? live.filter(f => rd.performance[perfKeyFor(region, f.properties)]).length : 0,
     browardPlaces: data.browardPlaces?.features.length || 0,
     mdcPlaces: data.mdcPlaces?.features.length || 0,
     orangePlaces: data.orangePlaces?.features.length || 0,
@@ -1927,12 +2256,12 @@ function LayersPanel({ state, store }) {
               <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#16a34a" stroke="#fff"></circle></svg>
               <svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#dc2626" stroke="#fff"></polygon></svg>
             </span>
-            <span class="lyr">School Performance<i>color = % Level 3+ · shape = sector</i></span>
+            <span class="lyr">School Performance<i>${cfg.perfSourceNote} · color = proficiency · shape = sector</i></span>
             <span class="cnt">${counts.perf}</span>
           </label>
           ${state.showPerformance ? html`
             <div class="text-[10px] text-ink-500 leading-snug" style="padding-left:20px">
-              Color = % scoring Level 3+ (ELA+Math), <span style="color:var(--neg);font-weight:600">red</span> → <span style="color:var(--pos);font-weight:600">green</span>.
+              Color = ${cfg.perfCaption}, <span style="color:var(--neg);font-weight:600">red</span> → <span style="color:var(--pos);font-weight:600">green</span>.
               Size = enrollment. <b>○</b> district · <b>▲</b> charter. Click a school for full detail.
             </div>
           ` : null}
@@ -1946,50 +2275,19 @@ function LayersPanel({ state, store }) {
       <summary class="sec-head"><span>Government Boundaries</span><span class="chev">›</span></summary>
       <div style="padding:var(--pad)" class="space-y-2.5">
 
-        <div class="space-y-1">
-          <div class="grp">Broward</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showBrowardSBD}
-                   onChange=${e => store.set({ showBrowardSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D7</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showBrowardPlaces}
-                   onChange=${e => store.set({ showBrowardPlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.browardPlaces}</span>
-          </label>
-        </div>
-
-        <div class="space-y-1">
-          <div class="grp">Miami-Dade</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showMiamiDadeSBD}
-                   onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D9</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showMiamiDadePlaces}
-                   onChange=${e => store.set({ showMiamiDadePlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.mdcPlaces}</span>
-          </label>
-        </div>
-
-        <div class="space-y-1">
-          <div class="grp">Orange</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showOrangeSBD}
-                   onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D7</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showOrangePlaces}
-                   onChange=${e => store.set({ showOrangePlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.orangePlaces}</span>
-          </label>
-        </div>
+        ${cfg.boundaryGroups.map(group => html`
+          <div class="space-y-1">
+            <div class="grp">${group.label}</div>
+            ${group.items.map(item => html`
+              <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+                <input type="checkbox" checked=${!!state[item.flag]}
+                       onChange=${e => store.set({ [item.flag]: e.target.checked })} />
+                <span class="lyr">${item.title}<i>${item.caption}</i></span>
+                ${item.countKey ? html`<span class="cnt">${counts[item.countKey]}</span>` : null}
+              </label>
+            `)}
+          </div>
+        `)}
 
       </div>
     </details>
@@ -2017,18 +2315,24 @@ function LayersPanel({ state, store }) {
           <span class="cnt">${counts.charter}</span>
         </label>
 
-        <!-- Step Up private — PURPLE rounded-square -->
+        <!-- Step Up private — PURPLE rounded-square (Florida only; NJ has no
+             comparable statewide private-school roster yet) -->
+        ${cfg.hasStepUp ? html`
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked=${state.showStepUp}
                  onChange=${e => store.set({ showStepUp: e.target.checked })} />
           <span style="width:11px;height:11px;border-radius:18%;background:#9333ea;border:1.5px solid #581c87;display:inline-block;flex-shrink:0"></span>
           <span class="lyr">Private Schools<i>size = K-8 enrollment</i></span>
           <span class="cnt">${counts.stepup}</span>
-        </label>
+        </label>` : html`
+        <div class="text-[10px] text-ink-400 leading-snug">
+          Private schools: no comparable NJ statewide roster wired up yet.
+        </div>`}
 
       </div>
     </details>
 
+    ${!cfg.hasStateSpecific ? null : html`
     <!-- ============ Florida-Specific ============ -->
     <details open>
       <summary class="sec-head"><span>Florida-Specific</span><span class="chev">›</span></summary>
@@ -2082,7 +2386,7 @@ function LayersPanel({ state, store }) {
         </div>
 
       </div>
-    </details>
+    </details>`}
 
     <!-- ============ Suitability weights (unlisted in the new hierarchy — kept as its own section) ============ -->
     <details>
@@ -2211,6 +2515,98 @@ function ensureSbdLayer(map, tag, sbdSrc, focusDistrict, focusCounty) {
   }
 }
 
+// ---------- New Jersey wards (the NJ analog of Florida's SBDs) ----------
+// Ward polygons per city, colored from the same palette as the FL districts so
+// the two regions read alike. Newark's wards are named (Central/East/...), so
+// the fill expression matches on the ward string rather than a number.
+// Sub-area display labels. Florida districts are numbered ("District 5"); NJ
+// wards are either compass names (Newark -> "West Ward") or numbers
+// (Camden/Paterson -> "Ward 3"). The matrix table needs a very short form, and
+// since each column also carries a color swatch, an initial/number is enough.
+function areaLabel(region, id, noun = "District") {
+  if (region !== "nj") return `${noun} ${id}`;
+  return isNaN(+id) ? `${id} Ward` : `Ward ${id}`;
+}
+function areaShort(region, id) {
+  if (region !== "nj") return `D${id}`;
+  return isNaN(+id) ? String(id).charAt(0) : `W${id}`;
+}
+
+const WARD_COLORS = ["#f97316", "#0ea5e9", "#22c55e", "#a855f7", "#ef4444", "#eab308", "#14b8a6"];
+
+function wardFillExpr(wards) {
+  const expr = ["case"];
+  wards.forEach((w, i) => {
+    expr.push(["==", ["get", "ward"], w], WARD_COLORS[i % WARD_COLORS.length]);
+  });
+  expr.push("#94a3b8");
+  return expr;
+}
+
+function ensureWardLayer(map, tag, city, wardsSrc, focusDistrict, focusCity) {
+  if (!wardsSrc) return;
+  const feats = wardsSrc.features.filter(f => f.properties.city === city);
+  if (!feats.length) return;
+  const srcId = `wards-${tag}`;
+  const fillId = `wards-${tag}-fill`;
+  const lineId = `wards-${tag}-line`;
+  const wardList = feats.map(f => f.properties.ward);
+
+  // Recreated each render so the focus highlight updates, mirroring ensureSbdLayer.
+  [fillId, lineId].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+  if (!map.getSource(srcId)) {
+    map.addSource(srcId, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: feats.map(f => ({
+        type: "Feature",
+        properties: { ...f.properties },
+        geometry: JSON.parse(JSON.stringify(f.geometry)),
+      }))},
+    });
+  }
+
+  const focused = (focusCity === city && focusDistrict != null) ? String(focusDistrict) : "__no_ward__";
+  map.addLayer({
+    id: fillId, type: "fill", source: srcId,
+    layout: { visibility: "none" },
+    paint: {
+      "fill-color": wardFillExpr(wardList),
+      "fill-opacity": ["case", ["==", ["get", "ward"], focused], 0.55, 0.22],
+    },
+  });
+  map.addLayer({
+    id: lineId, type: "line", source: srcId,
+    layout: { visibility: "none" },
+    paint: { "line-color": "#374151", "line-width": 1.5 },
+  });
+
+  if (!map[`__wardClick_${tag}`]) {
+    map.on("click", fillId, e => {
+      const f = e.features?.[0]; if (!f) return;
+      window.__store?.set({ focusDistrict: f.properties.ward, county: f.properties.city });
+    });
+    map.on("mouseenter", fillId, () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", fillId, () => map.getCanvas().style.cursor = "");
+    map[`__wardClick_${tag}`] = true;
+  }
+}
+
+// NJ city outline — single polygon per city, styled like the FL municipal layer.
+function ensureNjPlaceLayer(map, tag, city, placesSrc) {
+  if (!placesSrc) return;
+  const srcId = `njplaces-${tag}`;
+  const lineId = `njplaces-${tag}-line`;
+  if (map.getSource(srcId)) return;
+  const feats = placesSrc.features.filter(f => f.properties.city === city);
+  if (!feats.length) return;
+  map.addSource(srcId, { type: "geojson", data: { type: "FeatureCollection", features: feats } });
+  map.addLayer({
+    id: lineId, type: "line", source: srcId,
+    layout: { visibility: "none" },
+    paint: { "line-color": "#ffffff", "line-width": 2, "line-opacity": 0.9, "line-dasharray": [3, 2] },
+  });
+}
+
 // ---------- Municipal boundaries (incorporated places), per county ----------
 // Unlike SBDs these have no per-district focus state to refresh, so the
 // source + layers are created once and left alone (idempotent).
@@ -2271,13 +2667,23 @@ async function renderSBDLayers(state) {
   (window.__stepupMarkers || []).forEach(m => m.remove());
   window.__stepupMarkers = [];
 
-  ensureSbdLayer(map, "brw", data.sbd,    focusDistrict, county === "broward"   ? "brw" : null);
-  ensureSbdLayer(map, "mdc", data.mdcSbd, focusDistrict, county === "miamidade" ? "mdc" : null);
-  ensureSbdLayer(map, "org", data.orangeSbd, focusDistrict, county === "orange" ? "org" : null);
+  const region = state.region || "fl";
 
-  ensurePlacesLayer(map, "brw", data.browardPlaces);
-  ensurePlacesLayer(map, "mdc", data.mdcPlaces);
-  ensurePlacesLayer(map, "org", data.orangePlaces);
+  if (region === "fl") {
+    ensureSbdLayer(map, "brw", data.sbd,    focusDistrict, county === "broward"   ? "brw" : null);
+    ensureSbdLayer(map, "mdc", data.mdcSbd, focusDistrict, county === "miamidade" ? "mdc" : null);
+    ensureSbdLayer(map, "org", data.orangeSbd, focusDistrict, county === "orange" ? "org" : null);
+
+    ensurePlacesLayer(map, "brw", data.browardPlaces);
+    ensurePlacesLayer(map, "mdc", data.mdcPlaces);
+    ensurePlacesLayer(map, "org", data.orangePlaces);
+  } else {
+    for (const city of ["newark", "camden", "paterson"]) {
+      const tag = AREA_TAG[city];
+      ensureWardLayer(map, tag, city, data.njWards, focusDistrict, county);
+      ensureNjPlaceLayer(map, tag, city, data.njPlaces);
+    }
+  }
 
   // District labels — recreated from whichever counties have layers. Visibility
   // toggled in app.js syncLayerVisibility based on per-county flags.
@@ -2295,6 +2701,24 @@ async function renderSBDLayers(state) {
       el.style.cssText = `font:700 18px system-ui,sans-serif;color:#111827;
         text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none;user-select:none;`;
       window.__sbdLabelMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(c).addTo(map));
+    }
+  }
+
+  // Ward labels (NJ). Newark's are names, so they get the plain label rather
+  // than a "D#" prefix.
+  (window.__wardLabelMarkers || []).forEach(m => m.remove());
+  window.__wardLabelMarkers = [];
+  if (data.njWards) {
+    for (const f of data.njWards.features) {
+      const c = polygonCentroid(f.geometry);
+      if (!c) continue;
+      const el = document.createElement("div");
+      el.textContent = f.properties.ward_label || f.properties.ward;
+      el.dataset.wardTag = AREA_TAG[f.properties.city];
+      el.style.cssText = `font:700 13px var(--font-brand),system-ui,sans-serif;color:#111827;
+        text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;pointer-events:none;user-select:none;
+        white-space:nowrap;display:none;`;
+      window.__wardLabelMarkers.push(new maplibregl.Marker({ element: el }).setLngLat(c).addTo(map));
     }
   }
 
@@ -2332,7 +2756,8 @@ async function renderSBDLayers(state) {
   // SBD fill/line layers above get removed + re-added each time (Safari
   // tiling workaround) and would otherwise climb back on top.
   for (const id of ["places-brw-fill", "places-brw-line", "places-mdc-fill", "places-mdc-line",
-                     "places-org-fill", "places-org-line"]) {
+                     "places-org-fill", "places-org-line",
+                     "njplaces-nwk-line", "njplaces-cam-line", "njplaces-pat-line"]) {
     if (map.getLayer(id)) map.moveLayer(id);
   }
 
@@ -2343,19 +2768,44 @@ async function renderSBDLayers(state) {
 // ---------- DistrictPanel component ----------
 function DistrictPanel({ state, store }) {
   useEffect(() => { renderSBDLayers(state); },
-    [state.data, state.focusDistrict, state.showStepUp, state.county,
-     state.showBrowardSBD, state.showMiamiDadeSBD, state.showOrangeSBD]);
+    [state.data, state.focusDistrict, state.showStepUp, state.county, state.region,
+     state.showBrowardSBD, state.showMiamiDadeSBD, state.showOrangeSBD,
+     state.showNewarkWards, state.showCamdenWards, state.showPatersonWards]);
 
   const { data, focusDistrict, county } = state;
   if (!data) return null;
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
 
-  const isMiami = county === "miamidade";
-  const isOrange = county === "orange";
-  const rollupSrc = isOrange ? data.orangeSbdRollup : isMiami ? data.mdcSbdRollup : data.sbdRollup;
-  const stepupRollup = isOrange ? null : isMiami ? data.stepupMdcSbdRollup : data.stepupSbdRollup;
-  const charterOps = isOrange ? null : isMiami ? data.charterOperatorsMdc : data.charterOperators;
-  const districtIds = isMiami ? [1,2,3,4,5,6,7,8,9] : [1,2,3,4,5,6,7];
+  let rollupSrc, stepupRollup, charterOps, districtIds;
+  if (region === "nj") {
+    // Ward rollups are keyed "<city>-<ward>"; reduce to this city's wards so the
+    // shared tables below can treat them exactly like FL district numbers.
+    const all = data.njWardRollup || {};
+    const prefix = county + "-";
+    rollupSrc = {};
+    for (const [k, v] of Object.entries(all)) {
+      if (k.startsWith(prefix)) rollupSrc[k.slice(prefix.length)] = v;
+    }
+    rollupSrc._average = all[`_average_${county}`] || all._average || {};
+    districtIds = Object.keys(rollupSrc).filter(k => k !== "_average").sort();
+    stepupRollup = null;
+    charterOps = null;
+    if (!districtIds.length) return null;
+  } else {
+    const isMiami = county === "miamidade";
+    const isOrange = county === "orange";
+    rollupSrc = isOrange ? data.orangeSbdRollup : isMiami ? data.mdcSbdRollup : data.sbdRollup;
+    stepupRollup = isOrange ? null : isMiami ? data.stepupMdcSbdRollup : data.stepupSbdRollup;
+    charterOps = isOrange ? null : isMiami ? data.charterOperatorsMdc : data.charterOperators;
+    districtIds = isMiami ? [1,2,3,4,5,6,7,8,9] : [1,2,3,4,5,6,7];
+  }
   if (!rollupSrc) return null;
+  // Color lookup: FL districts are numbered 1-9; NJ wards may be names, so fall
+  // back to position in the ward list.
+  const colorOf = (id) => DISTRICT_COLORS[id]
+    || WARD_COLORS[Math.max(0, districtIds.indexOf(id)) % WARD_COLORS.length];
+  const noun = cfg.subAreaNoun;
 
   const cohort = Object.entries(rollupSrc).filter(([k]) => k !== "_average");
   const ranked = rankCohort(cohort, state.weights || DEFAULT_WEIGHTS);
@@ -2363,13 +2813,13 @@ function DistrictPanel({ state, store }) {
 
   return html`
     <details>
-      <summary class="sec-head"><span>District Analysis · Charter Ops · Step Up</span><span class="chev">›</span></summary>
+      <summary class="sec-head"><span>${cfg.analysisTitle}</span><span class="chev">›</span></summary>
 
-      <!-- County tab selector for sidebar content (map shows whatever layers are toggled) -->
+      <!-- Sub-area selector for sidebar content (map shows whatever layers are toggled) -->
       <div style="padding:9px var(--pad);border-bottom:1px solid var(--hair)" class="flex items-center gap-2">
         <span class="grp" style="margin:0">Show data for</span>
         <div class="segrow">
-          ${[{id:"broward",label:"Broward"},{id:"miamidade",label:"Miami-Dade"},{id:"orange",label:"Orange"}].map(c => html`
+          ${cfg.areas.map(c => html`
             <button
               onClick=${() => store.set({ county: c.id, focusDistrict: null })}
               class="seg ${state.county === c.id ? "on" : ""}"
@@ -2382,21 +2832,22 @@ function DistrictPanel({ state, store }) {
         <${DistrictDetail}
           district=${focusDistrict} data=${data} store=${store} state=${state}
           rollupSrc=${rollupSrc} stepupRollup=${stepupRollup} county=${county}
+          noun=${noun} colorOf=${colorOf} districtIds=${districtIds}
         />
       ` : html`
         <div class="p-3 space-y-3">
 
           <!-- Suitability ranking -->
           <table class="data">
-            <thead><tr><th>Rank</th><th>District</th><th class="num">Suitability</th></tr></thead>
+            <thead><tr><th>Rank</th><th>${noun}</th><th class="num">Suitability</th></tr></thead>
             <tbody>
               ${sortedDist.map((s, i) => html`
-                <tr onClick=${() => store.set({ focusDistrict: Number(s.id) })}
+                <tr onClick=${() => store.set({ focusDistrict: region === "nj" ? s.id : Number(s.id) })}
                     class="cursor-pointer hover:bg-kipp-50">
                   <td class="num text-ink-500">${i+1}</td>
                   <td>
-                    <span style="display:inline-block;width:8px;height:8px;background:${DISTRICT_COLORS[s.id]};border-radius:2px;margin-right:5px"></span>
-                    District ${s.id}
+                    <span style="display:inline-block;width:8px;height:8px;background:${colorOf(s.id)};border-radius:2px;margin-right:5px"></span>
+                    ${areaLabel(region, s.id, noun)}
                   </td>
                   <td class="num font-semibold">${fmt.pct(s.score/100, 1)}</td>
                 </tr>
@@ -2406,7 +2857,7 @@ function DistrictPanel({ state, store }) {
 
           <!-- Demographic comparison table (scrollable) -->
           <div class="overflow-x-auto text-[11px]">
-            <${SBDTable} sbdRollup=${rollupSrc} districtIds=${districtIds} />
+            <${SBDTable} sbdRollup=${rollupSrc} districtIds=${districtIds} colorOf=${colorOf} region=${region} />
           </div>
 
           ${charterOps ? html`<${CharterOperatorsPanel} data=${charterOps} />` : null}
@@ -2438,21 +2889,27 @@ function DistrictPanel({ state, store }) {
             </div>
           ` : null}
 
-          <${DistrictTakeaways} sortedDist=${sortedDist} data=${data} county=${county} />
+          <${DistrictTakeaways} sortedDist=${sortedDist} data=${data} county=${county} noun=${noun} region=${region} />
         </div>
       `}
     </details>
   `;
 }
 
-function DistrictDetail({ district, data, store, state, rollupSrc, stepupRollup, county }) {
+function DistrictDetail({ district, data, store, state, rollupSrc, stepupRollup, county,
+                          noun = "District", colorOf, districtIds }) {
+  const region = state?.region || "fl";
   const src = rollupSrc || data.sbdRollup;
   const rec = src[String(district)];
   const avg = src._average || {};
+  // Step Up is Florida-only, so NJ never populates this table.
   const sbdKey = county === "miamidade" ? "mdc_sbd" : "sbd";
-  const stepupSchools = (data.stepupSchools?.features || [])
+  const stepupSchools = region !== "fl" ? [] : (data.stepupSchools?.features || [])
     .filter(f => f.properties[sbdKey] === district)
     .sort((a,b) => (b.properties.enroll_total||0) - (a.properties.enroll_total||0));
+  const swatch = (colorOf ? colorOf(district) : DISTRICT_COLORS[district]);
+  const fullLabel = areaLabel(region, district, noun);
+  const shortLabel = areaShort(region, district);
   const rows = [
     ["Population (2025)",    "pop_total",               fmt.int],
     ["% HHI Below $50k",    "pct_hhi_u50",             fmt.pct],
@@ -2468,14 +2925,16 @@ function DistrictDetail({ district, data, store, state, rollupSrc, stepupRollup,
   return html`
     <div class="p-4 space-y-3">
       <button onClick=${() => store.set({ focusDistrict: null })}
-              class="text-xs text-kipp-600 hover:underline">← All districts</button>
+              class="text-xs text-kipp-600 hover:underline">← All ${noun.toLowerCase()}s</button>
       <div class="flex items-center gap-2">
-        <span style="display:inline-block;width:14px;height:14px;background:${DISTRICT_COLORS[district]};border-radius:3px"></span>
-        <h2 class="text-base font-semibold text-ink-900">District ${district}</h2>
-        <span class="text-xs text-ink-500">${county === "miamidade" ? "Miami-Dade" : "Broward"} SBD</span>
+        <span style="display:inline-block;width:14px;height:14px;background:${swatch};border-radius:3px"></span>
+        <h2 class="text-base font-semibold text-ink-900">${fullLabel}</h2>
+        <span class="text-xs text-ink-500">${region === "nj"
+          ? (county.charAt(0).toUpperCase() + county.slice(1))
+          : `${county === "miamidade" ? "Miami-Dade" : county === "orange" ? "Orange" : "Broward"} SBD`}</span>
       </div>
       <table class="data">
-        <thead><tr><th>Demographic</th><th class="num">D${district}</th><th class="num">Avg</th><th class="num">+/−</th></tr></thead>
+        <thead><tr><th>Demographic</th><th class="num">${shortLabel}</th><th class="num">Avg</th><th class="num">+/−</th></tr></thead>
         <tbody>
           ${rows.map(([label, k, f]) => {
             const v = rec?.[k], a = avg[k];
@@ -2496,7 +2955,7 @@ function DistrictDetail({ district, data, store, state, rollupSrc, stepupRollup,
       ${stepupSchools.length ? html`
         <div class="border border-ink-100 rounded-md overflow-hidden">
           <div class="px-3 py-2 text-xs font-medium text-ink-700 bg-ink-50 border-b border-ink-100">
-            Step Up in D${district} · ${stepupSchools.length} schools
+            Step Up in ${shortLabel} · ${stepupSchools.length} schools
           </div>
           <div class="max-h-[260px] overflow-y-auto scrollbar-thin">
             <table class="data">
@@ -2518,8 +2977,10 @@ function DistrictDetail({ district, data, store, state, rollupSrc, stepupRollup,
   `;
 }
 
-function SBDTable({ sbdRollup, districtIds }) {
+function SBDTable({ sbdRollup, districtIds, colorOf, region }) {
   const ids = districtIds || [1,2,3,4,5,6,7];
+  const color = colorOf || (d => DISTRICT_COLORS[d]);
+  const head = (d) => areaShort(region || "fl", d);
   const avg = sbdRollup._average || {};
   const rows = [
     ["Population",  "pop_total",   fmt.int],
@@ -2537,7 +2998,7 @@ function SBDTable({ sbdRollup, districtIds }) {
         <tr>
           <th></th>
           ${ids.map(d => html`<th class="num" style="padding:2px 5px">
-            <span style="display:inline-block;width:7px;height:7px;background:${DISTRICT_COLORS[d]};border-radius:2px;margin-right:2px;vertical-align:middle"></span>D${d}
+            <span style="display:inline-block;width:7px;height:7px;background:${color(d)};border-radius:2px;margin-right:2px;vertical-align:middle"></span>${head(d)}
           </th>`)}
           <th class="num" style="padding:2px 5px">Avg</th>
         </tr>
@@ -2596,7 +3057,7 @@ function CharterOperatorsPanel({ data }) {
   `;
 }
 
-function DistrictTakeaways({ sortedDist, data, county }) {
+function DistrictTakeaways({ sortedDist, data, county, noun = "District", region = "fl" }) {
   const top = sortedDist[0], bottom = sortedDist[sortedDist.length-1];
   return html`
     <details class="border border-ink-100 rounded-md overflow-hidden" open>
@@ -2605,12 +3066,12 @@ function DistrictTakeaways({ sortedDist, data, county }) {
       </summary>
       <div class="p-3 space-y-1.5 text-xs leading-relaxed text-ink-700">
         <div><strong>Best suitability:</strong>
-          <span class="pill ml-1" style="background:#dcfce7;color:#166534">District ${top.id}</span>
+          <span class="pill ml-1" style="background:#dcfce7;color:#166534">${areaLabel(region, top.id, noun)}</span>
           <span class="text-ink-500">(${fmt.pct(top.score/100)},
-            ${Math.round(top.score - sortedDist[1].score)} pts ahead of D${sortedDist[1].id})</span>
+            ${Math.round(top.score - sortedDist[1].score)} pts ahead of ${sortedDist[1].id})</span>
         </div>
         <div><strong>Weakest:</strong>
-          <span class="pill ml-1" style="background:#fee2e2;color:#991b1b">District ${bottom.id}</span>
+          <span class="pill ml-1" style="background:#fee2e2;color:#991b1b">${areaLabel(region, bottom.id, noun)}</span>
           <span class="text-ink-500">(${fmt.pct(bottom.score/100)})</span>
         </div>
       </div>

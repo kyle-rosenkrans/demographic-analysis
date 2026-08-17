@@ -33,7 +33,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
 OUT = os.path.join(WEB, "app.bundle.js")
 
-ORDER = ["utils.js", "suitability.js", "state.js", "app.js", "campus.js", "heatmap.js", "sbd.js"]
+ORDER = ["utils.js", "suitability.js", "region.js", "state.js", "app.js",
+         "campus.js", "heatmap.js", "sbd.js"]
 
 LOCAL_IMPORT_RE = re.compile(r'^\s*import\s+.*?\bfrom\s+["\']\./[^"\']+["\'];?\s*$', re.MULTILINE)
 CDN_IMPORT_RE = re.compile(r'^\s*import\s+(.*?)\s+from\s+["\'](https://esm\.sh/[^"\']+)["\'];?\s*$', re.MULTILINE)

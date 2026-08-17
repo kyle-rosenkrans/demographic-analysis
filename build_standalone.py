@@ -64,6 +64,21 @@ FILES = {
     "mdcPlaces": "miamidade_places.geojson",
 }
 
+# ---- New Jersey (Newark · Camden · Paterson) ----
+NJ = {
+    "njWards": "nj_wards.geojson",
+    "njPlaces": "nj_places.geojson",
+    "njBlockgroups": "nj_blockgroups.geojson",
+    "acsNj": "acs_nj.json",
+    "njWardRollup": "nj_ward_rollup.json",
+    "njCityRollup": "nj_city_rollup.json",
+    "bgNjWardAssignment": "bg_nj_ward_assignment.json",
+    "njSchools": "nj_schools.geojson",
+    "njPerformance": "nj_school_performance.json",
+    "njEnrollment": "nj_enrollment.json",
+    "njRings": "nj_rings.json",
+}
+
 
 def load(fn):
     path = os.path.join(PROC, fn)
@@ -118,6 +133,12 @@ def main():
     if og.get("places"): data["orangePlaces"] = og["places"]
     print("   + Orange merged (schools, performance, acs, rings, plp, enroll, sbd, boundaries, places)")
 
+    nj = {k: load(fn) for k, fn in NJ.items()}
+    for k, v in nj.items():
+        if v is not None:
+            data[k] = v
+    print(f"   + New Jersey merged ({sum(1 for v in nj.values() if v is not None)}/{len(NJ)} files)")
+
     print("Reading bundled app…")
     with open(bundle_path, encoding="utf-8") as f:
         bundle = f.read()
@@ -134,8 +155,8 @@ def main():
     # Drop the module script tag — the standalone build inlines the bundle instead.
     head_inner = re.sub(r'\n?<script type="module" src="\./app\.js"></script>\n?', "\n", head_inner)
     head_inner = head_inner.replace(
-        "<title>KIPP Demographics — Broward · Miami-Dade · Orange</title>",
-        "<title>KIPP Demographics — Broward · Miami-Dade · Orange (standalone)</title>",
+        "<title>KIPP Demographics — Florida &amp; New Jersey</title>",
+        "<title>KIPP Demographics — Florida &amp; New Jersey (standalone)</title>",
     )
 
     data_json = json.dumps(data, separators=(",", ":"), allow_nan=False, default=str)

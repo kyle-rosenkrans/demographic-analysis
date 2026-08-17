@@ -5,9 +5,9 @@ import { h } from "https://esm.sh/preact@10.22.0";
 import { useEffect } from "https://esm.sh/preact@10.22.0/hooks";
 import htm from "https://esm.sh/htm@3.1.1";
 import { getMapIdle } from "./app.js";
-import { perfKey } from "./state.js";
 import { fmt, quantileBreaks, stepExpr, RAMP_ORANGE, RAMP_BLUE, RAMP_GREEN, RAMP_PURPLE, RAMP_RED } from "./utils.js";
 import { DEFAULT_WEIGHTS, score, val, WEIGHT_LABELS } from "./suitability.js";
+import { regionCfg, regionData, perfKeyFor } from "./region.js";
 
 const html = htm.bind(h);
 
@@ -23,14 +23,15 @@ const METRICS = [
   { id: "suitability",  label: "Suitability Score",  ramp: RAMP_ORANGE, kind: "pct" },
 ];
 
-// Build a combined FC of block-groups with ACS joined
-function joinedBGs(data) {
+// Build a combined FC of block-groups with ACS joined, for the active region.
+function joinedBGs(data, region) {
+  const rd = regionData(data, region);
   const feats = [];
-  for (const src of [data.bgBroward, data.bgMiami, data.bgOrange]) {
+  for (const src of rd.blockGroups) {
     if (!src) continue;
     for (const f of src.features) {
       const g = f.properties?.GEOID;
-      const rec = data.acs[g];
+      const rec = rd.acs[g];
       if (!rec) continue;
       const merged = { ...f.properties, ...rec };
       merged.pop_k_8_est = (rec.pop_k_4_est || 0) + (rec.pop_5_8_est || 0);
@@ -61,6 +62,7 @@ function addSuitability(fc, weights) {
 }
 
 let BG_FC = null;
+let BG_REGION = null;   // which region BG_FC was built for
 let CURRENT_LAYER = null;
 let CURRENT_BREAKS = null;
 
@@ -68,10 +70,14 @@ let CURRENT_BREAKS = null;
 async function renderHeatLayers(state) {
   const map = await getMapIdle();
   const { data, heatLayer, showHeatMap } = state;
+  const region = state.region || "fl";
   if (!data) return;
 
-  if (!BG_FC) {
-    BG_FC = joinedBGs(data);
+  // Rebuild the joined block groups when the region changes — the heat map
+  // shares one `bg` source between regions and swaps its data.
+  if (!BG_FC || BG_REGION !== region) {
+    BG_FC = joinedBGs(data, region);
+    BG_REGION = region;
     addSuitability(BG_FC, state.weights || DEFAULT_WEIGHTS);
   } else if (heatLayer === "suitability") {
     addSuitability(BG_FC, state.weights || DEFAULT_WEIGHTS);
@@ -161,29 +167,32 @@ function formatBreak(v, kind) {
 export function LayersPanel({ state, store }) {
   useEffect(() => {
     if (state.showHeatMap) renderHeatLayers(state);
-  }, [state.data, state.heatLayer, state.weights, state.showHeatMap]);
+  }, [state.data, state.heatLayer, state.weights, state.showHeatMap, state.region]);
 
   // Re-run legend update whenever heat map is shown
   useEffect(() => {
     if (state.showHeatMap && CURRENT_LAYER && CURRENT_BREAKS) {
       updateLegendDOM(CURRENT_LAYER, CURRENT_BREAKS);
     }
-  }, [state.showHeatMap]);
+  }, [state.showHeatMap, state.region]);
 
   const { data } = state;
   if (!data) return null;
+  const region = state.region || "fl";
+  const cfg = regionCfg(region);
+  const rd = regionData(data, region);
 
   const weights = state.weights || { ...DEFAULT_WEIGHTS };
   const total = Object.values(weights).reduce((a,b) => a+(b||0), 0);
 
-  const live = (data.universalSchools?.features || []).filter(f =>
+  const live = (rd.schools?.features || []).filter(f =>
     f.properties.status !== "closed" && f.properties.role !== "incubation");
   const counts = {
     district: live.filter(f => f.properties.role === "district").length,
     charter: live.filter(f => f.properties.role === "charter").length,
     stepup: data.stepupSchools?.features.length || 0,
     plp: Object.keys(data.plpSchools || {}).length,
-    perf: data.schoolPerformance ? live.filter(f => data.schoolPerformance[perfKey(f.properties)]).length : 0,
+    perf: rd.performance ? live.filter(f => rd.performance[perfKeyFor(region, f.properties)]).length : 0,
     browardPlaces: data.browardPlaces?.features.length || 0,
     mdcPlaces: data.mdcPlaces?.features.length || 0,
     orangePlaces: data.orangePlaces?.features.length || 0,
@@ -226,12 +235,12 @@ export function LayersPanel({ state, store }) {
               <svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="#16a34a" stroke="#fff"></circle></svg>
               <svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="#dc2626" stroke="#fff"></polygon></svg>
             </span>
-            <span class="lyr">School Performance<i>color = % Level 3+ · shape = sector</i></span>
+            <span class="lyr">School Performance<i>${cfg.perfSourceNote} · color = proficiency · shape = sector</i></span>
             <span class="cnt">${counts.perf}</span>
           </label>
           ${state.showPerformance ? html`
             <div class="text-[10px] text-ink-500 leading-snug" style="padding-left:20px">
-              Color = % scoring Level 3+ (ELA+Math), <span style="color:var(--neg);font-weight:600">red</span> → <span style="color:var(--pos);font-weight:600">green</span>.
+              Color = ${cfg.perfCaption}, <span style="color:var(--neg);font-weight:600">red</span> → <span style="color:var(--pos);font-weight:600">green</span>.
               Size = enrollment. <b>○</b> district · <b>▲</b> charter. Click a school for full detail.
             </div>
           ` : null}
@@ -245,50 +254,19 @@ export function LayersPanel({ state, store }) {
       <summary class="sec-head"><span>Government Boundaries</span><span class="chev">›</span></summary>
       <div style="padding:var(--pad)" class="space-y-2.5">
 
-        <div class="space-y-1">
-          <div class="grp">Broward</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showBrowardSBD}
-                   onChange=${e => store.set({ showBrowardSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D7</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showBrowardPlaces}
-                   onChange=${e => store.set({ showBrowardPlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.browardPlaces}</span>
-          </label>
-        </div>
-
-        <div class="space-y-1">
-          <div class="grp">Miami-Dade</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showMiamiDadeSBD}
-                   onChange=${e => store.set({ showMiamiDadeSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D9</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showMiamiDadePlaces}
-                   onChange=${e => store.set({ showMiamiDadePlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.mdcPlaces}</span>
-          </label>
-        </div>
-
-        <div class="space-y-1">
-          <div class="grp">Orange</div>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showOrangeSBD}
-                   onChange=${e => store.set({ showOrangeSBD: e.target.checked })} />
-            <span class="lyr">School Board Districts<i>D1–D7</i></span>
-          </label>
-          <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
-            <input type="checkbox" checked=${state.showOrangePlaces}
-                   onChange=${e => store.set({ showOrangePlaces: e.target.checked })} />
-            <span class="lyr">Municipal Boundaries<i>incorporated city/town limits</i></span>
-            <span class="cnt">${counts.orangePlaces}</span>
-          </label>
-        </div>
+        ${cfg.boundaryGroups.map(group => html`
+          <div class="space-y-1">
+            <div class="grp">${group.label}</div>
+            ${group.items.map(item => html`
+              <label class="flex items-center gap-2 cursor-pointer" style="padding-left:8px">
+                <input type="checkbox" checked=${!!state[item.flag]}
+                       onChange=${e => store.set({ [item.flag]: e.target.checked })} />
+                <span class="lyr">${item.title}<i>${item.caption}</i></span>
+                ${item.countKey ? html`<span class="cnt">${counts[item.countKey]}</span>` : null}
+              </label>
+            `)}
+          </div>
+        `)}
 
       </div>
     </details>
@@ -316,18 +294,24 @@ export function LayersPanel({ state, store }) {
           <span class="cnt">${counts.charter}</span>
         </label>
 
-        <!-- Step Up private — PURPLE rounded-square -->
+        <!-- Step Up private — PURPLE rounded-square (Florida only; NJ has no
+             comparable statewide private-school roster yet) -->
+        ${cfg.hasStepUp ? html`
         <label class="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked=${state.showStepUp}
                  onChange=${e => store.set({ showStepUp: e.target.checked })} />
           <span style="width:11px;height:11px;border-radius:18%;background:#9333ea;border:1.5px solid #581c87;display:inline-block;flex-shrink:0"></span>
           <span class="lyr">Private Schools<i>size = K-8 enrollment</i></span>
           <span class="cnt">${counts.stepup}</span>
-        </label>
+        </label>` : html`
+        <div class="text-[10px] text-ink-400 leading-snug">
+          Private schools: no comparable NJ statewide roster wired up yet.
+        </div>`}
 
       </div>
     </details>
 
+    ${!cfg.hasStateSpecific ? null : html`
     <!-- ============ Florida-Specific ============ -->
     <details open>
       <summary class="sec-head"><span>Florida-Specific</span><span class="chev">›</span></summary>
@@ -381,7 +365,7 @@ export function LayersPanel({ state, store }) {
         </div>
 
       </div>
-    </details>
+    </details>`}
 
     <!-- ============ Suitability weights (unlisted in the new hierarchy — kept as its own section) ============ -->
     <details>

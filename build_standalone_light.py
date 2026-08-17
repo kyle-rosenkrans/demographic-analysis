@@ -37,6 +37,21 @@ FILES = {
     "plpSchools": "plp_schools.json", "schoolPerformance": "school_performance.json",
     "browardPlaces": "broward_places.geojson", "mdcPlaces": "miamidade_places.geojson",
 }
+
+# ---- New Jersey (Newark · Camden · Paterson) ----
+NJ = {
+    "njWards": "nj_wards.geojson",
+    "njPlaces": "nj_places.geojson",
+    "njBlockgroups": "nj_blockgroups.geojson",
+    "acsNj": "acs_nj.json",
+    "njWardRollup": "nj_ward_rollup.json",
+    "njCityRollup": "nj_city_rollup.json",
+    "bgNjWardAssignment": "bg_nj_ward_assignment.json",
+    "njSchools": "nj_schools.geojson",
+    "njPerformance": "nj_school_performance.json",
+    "njEnrollment": "nj_enrollment.json",
+    "njRings": "nj_rings.json",
+}
 OG = {
     "u": "orange_universal_schools.geojson", "perf": "orange_school_performance.json",
     "acs": "acs_orange.json", "bg": "orange_blockgroups.geojson", "rings": "orange_rings.json",
@@ -162,6 +177,11 @@ def main():
     if og.get("sbdroll"): data["orangeSbdRollup"] = og["sbdroll"]
     if og.get("places"): data["orangePlaces"] = thin_fc(og["places"])
 
+    for key, fn in NJ.items():
+        d = load(fn)
+        if d is not None:
+            data[key] = thin_fc(d) if fn.endswith(".geojson") else d
+
     with open(bundle_path, encoding="utf-8") as f:
         bundle = f.read()
 
@@ -175,8 +195,8 @@ def main():
     head_inner = head_m.group(1)
     head_inner = re.sub(r'\n?<script type="module" src="\./app\.js"></script>\n?', "\n", head_inner)
     head_inner = head_inner.replace(
-        "<title>KIPP Demographics — Broward · Miami-Dade · Orange</title>",
-        "<title>KIPP Demographics — Broward · Miami-Dade · Orange (light)</title>",
+        "<title>KIPP Demographics — Florida &amp; New Jersey</title>",
+        "<title>KIPP Demographics — Florida &amp; New Jersey (light)</title>",
     )
 
     data_json = json.dumps(data, separators=(",", ":"), allow_nan=False, default=str).replace("</", "<\\/")
